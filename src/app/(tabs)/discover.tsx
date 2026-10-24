@@ -4,7 +4,7 @@
  * browsing is tucked behind a link, so planning ends the browsing.
  */
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { formatEventWhen } from '@/core/time';
@@ -41,25 +41,20 @@ export default function Discover() {
   const focus = focusAdventure(history.adventures);
   const [exploreAnyway, setExploreAnyway] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<DiscoveryFilters>({
+  // Only what the user changed here is stored; everything else follows the
+  // defaults in Settings, so editing those updates this tab too.
+  const [overrides, setOverrides] = useState<Partial<DiscoveryFilters>>({});
+  const filters: DiscoveryFilters = {
     mood: 'surprise',
     budget: preferences.budget,
     maxDistanceKm: preferences.maxDistanceKm,
     availableMinutes: preferences.availableMinutes,
-  });
-  // Keep defaults in sync when they change in Settings (this tab stays mounted).
-  useEffect(() => {
-    setFilters((f) => ({
-      ...f,
-      budget: preferences.budget,
-      maxDistanceKm: preferences.maxDistanceKm,
-      availableMinutes: preferences.availableMinutes,
-    }));
-  }, [preferences.budget, preferences.maxDistanceKm, preferences.availableMinutes]);
+    ...overrides,
+  };
 
   const now = new Date();
   const setFilter = <K extends keyof DiscoveryFilters>(key: K, value: DiscoveryFilters[K]) =>
-    setFilters((f) => ({ ...f, [key]: value }));
+    setOverrides((o) => ({ ...o, [key]: value }));
 
   const filterSummary = [
     budgetLabel(filters.budget, preferences.currency),

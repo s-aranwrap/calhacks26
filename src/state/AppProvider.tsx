@@ -98,16 +98,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [discovery, setDiscovery] = useState<DiscoverySession | null>(null);
 
+  // Latest preferences for callbacks that run later (event handlers, async work).
   const prefsRef = useRef(preferences);
-  prefsRef.current = preferences;
+  useEffect(() => {
+    prefsRef.current = preferences;
+  }, [preferences]);
 
-  const repositories = useMemo(
-    () => ({
-      demo: createDemoRepository({ currency: () => prefsRef.current.currency }),
-      remote: config.supabase
+  const remote = useMemo(
+    () =>
+      config.supabase
         ? createSupabaseRepository({ url: config.supabase.url, publishableKey: config.supabase.publishableKey })
         : null,
-    }),
     [],
   );
 
@@ -119,11 +120,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const reloadCatalog = useCallback(async () => {
     setCatalogLoading(true);
     try {
-      setCatalog(await loadCatalog({ demo: repositories.demo, remote: repositories.remote, store }));
+      // Sample prices follow the user's currency, read at load time.
+      const demo = createDemoRepository({ currency: () => prefsRef.current.currency });
+      setCatalog(await loadCatalog({ demo, remote, store }));
     } finally {
       setCatalogLoading(false);
     }
-  }, [repositories, store]);
+  }, [remote, store]);
 
   useEffect(() => {
     let cancelled = false;

@@ -3,6 +3,9 @@ import { Tabs } from 'expo-router';
 
 import { colors, fonts } from '@/ui/theme';
 
+// Icons use the same tints as the labels (the navigator's color type is wider than Ionicons accepts).
+const tabTint = (focused: boolean) => (focused ? colors.skyInk : colors.inkMuted);
+
 export default function TabsLayout() {
   return (
     <Tabs
@@ -19,8 +22,8 @@ export default function TabsLayout() {
         name="discover"
         options={{
           title: 'Discover',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'compass' : 'compass-outline'} size={size} color={color} />
+          tabBarIcon: ({ size, focused }) => (
+            <Ionicons name={focused ? 'compass' : 'compass-outline'} size={size} color={tabTint(focused)} />
           ),
         }}
       />
@@ -28,8 +31,8 @@ export default function TabsLayout() {
         name="adventures"
         options={{
           title: 'My adventures',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'map' : 'map-outline'} size={size} color={color} />
+          tabBarIcon: ({ size, focused }) => (
+            <Ionicons name={focused ? 'map' : 'map-outline'} size={size} color={tabTint(focused)} />
           ),
         }}
       />
@@ -37,8 +40,8 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={size} color={color} />
+          tabBarIcon: ({ size, focused }) => (
+            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={size} color={tabTint(focused)} />
           ),
         }}
       />

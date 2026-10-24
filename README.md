@@ -60,14 +60,14 @@ Supabase (a shared online catalog) and Apify (Instagram discovery) are optional 
 - **Node.js 22.18+** (or 24+). Tests and scripts use Node's built-in TypeScript support and test runner.
 - npm 10+
 - To run on a phone, either:
-  - **Expo Go** for **SDK 57**. Note: Expo released SDK 58 on 15 Oct 2026, and the store versions of Expo Go will switch to SDK 58 "in the next few weeks", after which they won't open SDK 57 projects. If that has happened, use a development build (below) or upgrade (see [limitations](#known-limitations-and-extension-points)). Expo Go also now requires signing in to an Expo account.
+  - **Expo Go** that supports **SDK 58**. Expo released SDK 58 on 15 Oct 2026; the App Store and Play Store versions of Expo Go were due to switch to it "in the next few weeks". If your store copy still says SDK 57, install the SDK 58 Expo Go with `npx expo start` → press `a` (Android emulator/device) or `i` (iOS simulator), use `eas go` for a physical iPhone, or use a development build. Expo Go also requires signing in to an Expo account.
   - or a **development build**: `npx expo run:ios` (Xcode) or `npx expo run:android` (Android Studio).
 
 ### Install and run
 
 ```bash
 npm install
-npx expo install --check   # confirms native module versions match SDK 57
+npx expo install --check   # confirms native module versions match SDK 58
 npm run typecheck
 npm test
 npx expo start             # scan the QR code with Expo Go, or press i / a
@@ -98,17 +98,20 @@ The tests cover:
 
 ## What has been verified
 
-This is exactly what was run while building this MVP, and what wasn't. The build environment couldn't reach the npm registry, so the Expo/React Native dependencies were never installed there.
+This is exactly what was run on this project (Expo SDK 58: React Native 0.88, React 19.3), and what wasn't.
 
 **Run and passing**
+- `npm install` with the SDK 58 versions, and `npx expo install --check` (in offline mode; Expo's API wasn't reachable).
+- `npm run typecheck`: the app against the installed Expo, React and React Native packages, plus a stricter check of core, data, server and tests.
 - `npm test`: 150 tests, 0 failures (Node 22.23).
-- `tsc -p tsconfig.node.json`: strict type check of core, data, server and tests against real `@types/node`.
-- Type check of all app screens and components against the real **React 19 and React Native 0.86.3 type definitions** and the real Ionicons glyph list. Expo modules were represented by hand-written type stubs mirroring their SDK 57 source. That catches mistakes in this code, not every possible mismatch with Expo's APIs.
+- `npx expo lint`: no errors or warnings.
+- `npx expo export --platform ios --platform android`: Metro bundled the whole app for both platforms.
+- `expo-doctor`: 18 of 20 checks pass. The other two need Expo's online API and couldn't run here.
 - The SQL migration applied to PostgreSQL 16, with RLS checks for `anon`, `authenticated` and `service_role`. Sample rows round-tripped through Postgres and back through the app's normalizer unchanged.
 - Both ingestion CLIs, end to end, on the sample files and without credentials.
 
 **Not run**
-- `npm install`, `expo lint`, Metro bundling, and the app on a simulator or device. Please run `npm run check` and `npx expo start` first. If anything fails, the error will most likely be in an Expo API detail rather than in the logic.
+- The app on a simulator or a phone. Bundling proves the code compiles and every import resolves, not that every screen behaves as intended.
 - The Supabase adapter against a live project, and the Apify integration against the live API (no credentials).
 
 ## Architecture
@@ -316,13 +319,13 @@ These are places where the implementation deliberately interprets or adjusts the
 - **Tests use `node:test`, not Jest.** The business logic is pure TypeScript, so the tests run in Node in about a second with no React Native toolchain. It also means `src/core` can't accidentally import React Native. If you later add component tests, `jest-expo` can sit alongside.
 - **No `supabase-js` in the app.** One read query doesn't justify the dependency and its React Native polyfills; plain `fetch` against PostgREST does the job.
 - **Candidates get their own table** so that unreviewed discoveries can't leak into the public catalog, even by a mistaken `published = true`.
-- **Expo SDK 57** rather than the 9-day-old SDK 58: SDK 57 is the version the store Expo Go app supports today, and SDK 58 changes Expo Router in ways worth adopting deliberately.
+- **Expo SDK 58.** The project started on SDK 57 and was upgraded. The code follows SDK 58's router guidance: `useRouter()` hooks, a `discover` route instead of a second index, no `initialRouteName`, and custom headers rather than the new transparent iOS header.
 
 ## Known limitations and extension points
 
 **Limitations**
-- **Not yet run on a device in this build environment.** See [What has been verified](#what-has-been-verified).
-- **Expo Go and SDK 58.** When store Expo Go moves to SDK 58, run `npx expo install expo@^58.0.0 --fix` and follow Expo's *SDK 57 → 58 Expo Router migration guide*. This code already uses the patterns it recommends: `useRouter()` hooks, a `discover` route instead of a duplicate index, no `initialRouteName`, and custom headers.
+- **Not yet run on a simulator or phone.** It builds and bundles; see [What has been verified](#what-has-been-verified).
+- **Expo Go availability.** SDK 58 projects need the SDK 58 Expo Go. Until the store copy updates, see [Prerequisites](#prerequisites).
 - Typed place names get coordinates only if location permission was already granted and the platform geocoder is reachable. Otherwise distance stays unknown.
 - No currency conversion. Prices in another currency are treated as unknown for budget filtering. Sample prices use whatever currency you pick.
 - Opening hours are free text, so "open right now" isn't computed. Recurring events need one row per date.

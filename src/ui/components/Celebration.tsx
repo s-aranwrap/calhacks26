@@ -3,7 +3,7 @@
  * adventure. It never blocks the screen and is static when the system's
  * Reduce Motion setting is on.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { useReducedMotion } from '../useReducedMotion';
@@ -37,8 +37,9 @@ export function penguinFor(n: number): { name: string; scarf: string } {
 
 export function Celebration({ penguinNumber }: { penguinNumber: number }) {
   const reduceMotion = useReducedMotion();
-  const scale = useRef(new Animated.Value(reduceMotion ? 1 : 0.6)).current;
-  const opacity = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  // Lazy state keeps one Animated.Value per mount without reading refs during render.
+  const [scale] = useState(() => new Animated.Value(reduceMotion ? 1 : 0.6));
+  const [opacity] = useState(() => new Animated.Value(reduceMotion ? 1 : 0));
   const { name, scarf } = penguinFor(penguinNumber);
 
   useEffect(() => {
