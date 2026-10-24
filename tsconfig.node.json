@@ -1,0 +1,32 @@
+{
+  // Type-checks the code that also runs directly under Node (core logic, data
+  // adapters, ingestion scripts and tests). Stricter than the app config, and
+  // `verbatimModuleSyntax` guarantees type-only imports are written as
+  // `import type`, which Node's type stripping needs.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/core/**/*.ts",
+    "src/data/**/*.ts",
+    "server/**/*.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.ts"
+  ]
+}

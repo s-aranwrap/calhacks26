@@ -1,0 +1,52 @@
+{
+  "name": "huddle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Huddle: an offline-first activity discovery app. Less scrolling. More living.",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test \"tests/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
+    "lint": "expo lint",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"tests/**/*.ts\"",
+    "check": "npm run typecheck && npm test && npm run lint",
+    "import:file": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/ingest/import-file.ts",
+    "ingest:instagram": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/ingest/instagram-cli.ts",
+    "db:check": "bash scripts/check-migrations.sh"
+  },
+  "dependencies": {
+    "@expo-google-fonts/nunito": "^0.4.2",
+    "@expo/vector-icons": "^15.0.2",
+    "expo": "~57.0.31",
+    "expo-constants": "~57.0.22",
+    "expo-file-system": "~57.0.7",
+    "expo-font": "~57.0.4",
+    "expo-linking": "~57.0.13",
+    "expo-location": "~57.0.22",
+    "expo-router": "~57.0.29",
+    "expo-sharing": "~57.0.24",
+    "expo-splash-screen": "~57.0.10",
+    "expo-sqlite": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.5",
+    "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.2",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

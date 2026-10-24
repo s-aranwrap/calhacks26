@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Huddle penguin (original artwork). Mirrors src/ui/components/Mascot.tsx, pose "waving". -->
+  <path d="M36 66 C24 76 22 92 28 102 C34 94 40 84 44 74 Z" fill="#2E3440"/>
+  <path d="M82 70 C98 58 102 42 96 34 C90 44 84 54 76 62 Z" fill="#2E3440"/>
+  <path d="M60 18 C36 18 30 44 30 70 C30 96 42 108 60 108 C78 108 90 96 90 70 C90 44 84 18 60 18 Z" fill="#2E3440"/>
+  <path d="M60 40 C46 40 40 56 40 74 C40 94 48 102 60 102 C72 102 80 94 80 74 C80 56 74 40 60 40 Z" fill="#FFFDF9"/>
+  <ellipse cx="60" cy="44" rx="20" ry="14" fill="#FFFDF9"/>
+  <ellipse cx="49" cy="108" rx="8" ry="4" fill="#F2A25C"/>
+  <ellipse cx="71" cy="108" rx="8" ry="4" fill="#F2A25C"/>
+  <path d="M38 58 C50 64 70 64 82 58 L82 66 C70 72 50 72 38 66 Z" fill="#F4B596"/>
+  <path d="M70 64 L78 84 L70 82 L66 66 Z" fill="#F4B596"/>
+  <circle cx="51" cy="41" r="3.4" fill="#2E3440"/>
+  <circle cx="69" cy="41" r="3.4" fill="#2E3440"/>
+  <circle cx="52.2" cy="39.8" r="1.1" fill="#FFFFFF"/>
+  <circle cx="70.2" cy="39.8" r="1.1" fill="#FFFFFF"/>
+  <circle cx="45" cy="48" r="3.2" fill="#F4B596" opacity="0.6"/>
+  <circle cx="75" cy="48" r="3.2" fill="#F4B596" opacity="0.6"/>
+  <path d="M55 48 L65 48 L60 54 Z" fill="#F2A25C"/>
+</svg>

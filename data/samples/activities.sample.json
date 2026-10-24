@@ -1,0 +1,47 @@
+{
+  "activities": [
+    {
+      "id": "sample-sketch-club",
+      "kind": "evergreen",
+      "title": "Urban sketching meetup point (sample)",
+      "description": "Fictional sample record. A spot where sketchers gather on weekend mornings.",
+      "category": "arts",
+      "moods": ["creative", "social"],
+      "tags": ["drawing", "meet-people", "outdoors"],
+      "venue_name": "Market Steps (sample)",
+      "area": "Old Town",
+      "latitude": 51.5072,
+      "longitude": -0.1276,
+      "opening_hours": "Saturdays, 10:00–12:00",
+      "duration_min_minutes": 90,
+      "is_free": true,
+      "currency": "GBP",
+      "source_platform": "manual",
+      "source_url": "https://example.org/sketch-club",
+      "verification_status": "unverified",
+      "what_to_expect": "Bring any sketchbook. People share work at the end.",
+      "why_try": "Drawing a place makes you notice it properly."
+    },
+    {
+      "kind": "event",
+      "title": "Night bike ride (sample)",
+      "description": "A slow, social, lit-up group ride.",
+      "category": "fitness",
+      "moods": "active|social",
+      "tags": "cycling|group|evening",
+      "venue_name": "Example Bike Shed (sample)",
+      "latitude": 51.4995,
+      "longitude": -0.1248,
+      "start_at": "2026-11-21T18:30:00Z",
+      "end_at": "2026-11-21T20:30:00Z",
+      "price_min": 0,
+      "source_platform": "organizer",
+      "source_id": "ride-2026-11-21",
+      "source_url": "https://example.org/rides/2026-11-21",
+      "verification_status": "verified",
+      "last_checked_at": "2026-10-22T09:00:00Z",
+      "availability": "available",
+      "restrictions": "Lights and a helmet required."
+    }
+  ]
+}
