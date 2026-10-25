@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { assessAvailability } from '@/core/availability';
+import { formatWeeklyHours, parsedHours } from '@/core/hours';
 import { assessChallenge, CHALLENGE_LABEL } from '@/core/challenge';
 import { formatDuration, formatPrice } from '@/core/format';
 import { formatCheckedAgo, isValidTimeZone } from '@/core/time';
@@ -48,6 +49,14 @@ export default function ActivityDetails() {
   const price = formatPrice(activity.price);
   const duration = formatDuration(activity.duration);
   const when = whenText(activity, now);
+  const weekly = activity.kind === 'evergreen' ? parsedHours(activity.openingHours) : null;
+  const whenDetail =
+    [
+      weekly ? formatWeeklyHours(weekly) : undefined,
+      activity.openingHoursSource ? `Hours from ${activity.openingHoursSource}` : undefined,
+    ]
+      .filter(Boolean)
+      .join('. ') || undefined;
   const distance =
     recommendation?.distanceKm ??
     (app.origin && activity.venue?.latitude !== undefined && activity.venue.longitude !== undefined
@@ -159,7 +168,7 @@ export default function ActivityDetails() {
           icon={when.icon}
           text={when.text}
           certainty={when.known ? undefined : 'unknown'}
-          detail={showZone ? `Times shown in ${activity.timeZone}` : undefined}
+          detail={showZone ? `Times shown in ${activity.timeZone}` : whenDetail}
         />
         <FactRow icon="hourglass-outline" text={duration.text} certainty={duration.certainty} />
         <FactRow icon="wallet-outline" text={price.text} certainty={price.certainty} detail={activity.price?.note} />

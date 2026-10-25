@@ -7,7 +7,8 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { formatEventWhen } from '@/core/time';
+import { describeOpening } from '@/core/hours';
+import { formatActivityWhen } from '@/core/time';
 import type { Mood } from '@/core/types';
 import { budgetLabel, distanceOptionLabel, timeOptionLabel } from '@/core/format';
 import { BUDGET_OPTIONS, DISTANCE_OPTIONS_KM, TIME_OPTIONS_MINUTES } from '@/data/local/preferences';
@@ -111,8 +112,9 @@ export default function Discover() {
           <AppText variant="title">{focus.activity.title}</AppText>
           <AppText variant="small" color={colors.skyInk}>
             {focus.activity.startAt
-              ? formatEventWhen(focus.activity.startAt, focus.activity.timeZone, now)
-              : (focus.activity.openingHours ?? 'Whenever suits you')}
+              ? formatActivityWhen(focus.activity, now)
+              : (describeOpening(focus.activity.openingHours, now, focus.activity.timeZone)?.text ??
+                'Whenever suits you')}
             {focus.activity.venue ? ` · ${focus.activity.venue.area ?? focus.activity.venue.name}` : ''}
           </AppText>
           <Button

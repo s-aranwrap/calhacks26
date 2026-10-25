@@ -9,7 +9,7 @@
  * Before a public launch, put the review step back in front of this.
  */
 import { normalizeActivity, type RawActivityRecord } from '../../src/core/normalize.ts';
-import { extractEventFromCaption, guessCategory, type ExtractResult } from './extractEvent.ts';
+import { extractEventsFromCaption, guessCategory, type CaptionEvent } from './extractEvent.ts';
 import type { GeoHit } from './geocode.ts';
 import { instagramPostToCandidate } from './instagram.ts';
 
@@ -31,7 +31,12 @@ export interface SfSourcesConfig {
 
 export interface PipelineReport {
   items: number;
+  /** Events written (a roundup post can give several). */
   kept: number;
+  /** Posts that gave at least one event. */
+  postsWithEvents: number;
+  /** Events read by Claude rather than the rules (with --ai). */
+  fromAi: number;
   skipped: Record<string, number>;
   perSource: Record<string, number>;
 }
@@ -50,12 +55,26 @@ function sourceFor(item: Record<string, unknown>, sources: SfSource[]): SfSource
   });
 }
 
+export interface PipelineOptions {
+  now: Date;
+  geocode?: (venue: string) => Promise<GeoHit>;
+  /** Optional Claude reader; returns null to fall back to the rules for a post. */
+  aiExtract?: (caption: string, postedAtIso: string, now: Date) => Promise<CaptionEvent[] | null>;
+}
+
 export async function postsToRecords(
   items: unknown[],
   config: SfSourcesConfig,
-  options: { now: Date; geocode?: (venue: string) => Promise<GeoHit> },
+  options: PipelineOptions,
 ): Promise<{ records: RawActivityRecord[]; report: PipelineReport }> {
-  const report: PipelineReport = { items: items.length, kept: 0, skipped: {}, perSource: {} };
+  const report: PipelineReport = {
+    items: items.length,
+    kept: 0,
+    postsWithEvents: 0,
+    fromAi: 0,
+    skipped: {},
+    perSource: {},
+  };
   const skip = (reason: string) => {
     report.skipped[reason] = (report.skipped[reason] ?? 0) + 1;
   };
@@ -79,45 +98,74 @@ export async function postsToRecords(
 
     const caption = typeof raw.caption === 'string' ? raw.caption : '';
     const postedAt = typeof raw.timestamp === 'string' ? raw.timestamp : options.now.toISOString();
-    const extracted: ExtractResult = extractEventFromCaption(caption, postedAt, options.now, config.timeZone);
-    if (!extracted.ok) {
-      skip(extracted.reason);
+    let events: CaptionEvent[] | null = options.aiExtract
+      ? await options.aiExtract(caption, postedAt, options.now)
+      : null;
+    const usedAi = events !== null;
+    let mode: 'single' | 'multi' = 'single';
+    if (events === null) {
+      const extracted = extractEventsFromCaption(caption, postedAt, options.now, config.timeZone);
+      events = extracted.events;
+      mode = extracted.mode;
+      if (events.length === 0) {
+        skip(extracted.skipped ?? 'no_date');
+        continue;
+      }
+    } else if (events.length === 0) {
+      skip('ai_no_event');
       continue;
     }
-    const { event } = extracted;
     const source = sourceFor(raw, config.sources);
+    const several = events.length > 1 || mode === 'multi';
+    let keptFromPost = 0;
 
-    let coords: GeoHit = null;
-    if (options.geocode && typeof record.venue_name === 'string') coords = await options.geocode(record.venue_name);
+    for (const [index, event] of events.entries()) {
+      // The post's tagged location only describes the post as a whole.
+      const venueName = event.venue ?? (several ? undefined : (record.venue_name as string | undefined));
+      let coords: GeoHit = null;
+      if (options.geocode && venueName) coords = await options.geocode(venueName);
 
-    const full: RawActivityRecord = {
-      ...record,
-      kind: 'event',
-      category: guessCategory(caption, source?.category ?? 'other'),
-      start_at: event.startWall,
-      ...(event.endWall ? { end_at: event.endWall } : {}),
-      time_zone: config.timeZone,
-      ...(event.isFree ? { is_free: true } : {}),
-      ...(event.priceMin !== undefined ? { price_min: event.priceMin } : {}),
-      ...(event.priceMax !== undefined ? { price_max: event.priceMax } : {}),
-      currency: 'USD',
-      price_certainty: 'estimated',
-      // Demo mode: visible but clearly labeled. See the file header.
-      verification_status: 'unverified',
-      ...(coords ? { latitude: coords.latitude, longitude: coords.longitude } : {}),
-      ...(record.venue_name ? {} : { area: config.city }),
-    };
+      const title = event.title ?? (record.title as string);
+      const full: RawActivityRecord = {
+        ...record,
+        title: event.recurring && !/\b(every|weekly)\b/i.test(title) ? `${title} (weekly)` : title,
+        ...(several ? { source_id: `${shortcode}:${index + 1}` } : {}),
+        kind: 'event',
+        category: guessCategory(event.text, source?.category ?? 'other'),
+        start_at: event.allDay ? event.date : (event.startWall ?? event.date),
+        ...(event.allDay
+          ? { all_day: true, ...(event.endDate ? { end_at: event.endDate } : {}) }
+          : event.endWall
+            ? { end_at: event.endWall }
+            : {}),
+        time_zone: config.timeZone,
+        ...(event.isFree ? { is_free: true } : {}),
+        ...(event.priceMin !== undefined ? { price_min: event.priceMin } : {}),
+        ...(event.priceMax !== undefined ? { price_max: event.priceMax } : {}),
+        currency: 'USD',
+        price_certainty: 'estimated',
+        // Demo mode: visible but clearly labeled. See the file header.
+        verification_status: 'unverified',
+        ...(event.recurring ? { tags: [...((record.tags as string[]) ?? []), 'weekly'] } : {}),
+        ...(venueName ? { venue_name: venueName } : { venue_name: undefined, area: config.city }),
+        ...(coords ? { latitude: coords.latitude, longitude: coords.longitude } : {}),
+      };
+      if (full.venue_name === undefined) delete full.venue_name;
 
-    // Run the app's own normalizer now, so the pack never contains a record the app would reject.
-    const check = normalizeActivity(full, { platform: 'json', now: options.now });
-    if (!check.ok || !check.activity.startAt) {
-      skip('invalid');
-      continue;
+      // Run the app's own normalizer now, so the pack never contains a record the app would reject.
+      const check = normalizeActivity(full, { platform: 'json', now: options.now });
+      if (!check.ok || !check.activity.startAt) {
+        skip('invalid');
+        continue;
+      }
+      records.push(full);
+      keptFromPost++;
+      report.kept++;
+      if (usedAi) report.fromAi++;
+      const key = source?.url ?? 'unknown source';
+      report.perSource[key] = (report.perSource[key] ?? 0) + 1;
     }
-    records.push(full);
-    report.kept++;
-    const key = source?.url ?? 'unknown source';
-    report.perSource[key] = (report.perSource[key] ?? 0) + 1;
+    if (keptFromPost > 0) report.postsWithEvents++;
   }
   return { records, report };
 }

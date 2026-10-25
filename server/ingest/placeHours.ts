@@ -1,0 +1,147 @@
+/**
+ * Turns Google Maps place results (from Apify's Google Maps scraper) into
+ * opening hours for the San Francisco starter places. Pure, so it's tested
+ * without the network.
+ *
+ * A result is only used when it is clearly the same place: within 400 m of
+ * the pack's coordinates. Otherwise the hand-researched hours stay.
+ */
+import { toOpeningHoursText, type OpenInterval, type WeeklyHours } from '../../src/core/hours.ts';
+import { distanceKm } from '../../src/core/util.ts';
+
+export interface PlaceQuery {
+  id: string;
+  query: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface PlaceHoursResult {
+  hours: string;
+  source: string;
+}
+
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+function clock(hour: number, minute: number, meridiem: string | undefined): number {
+  let h = hour % 12;
+  if (meridiem === 'pm') h += 12;
+  if (!meridiem) h = hour;
+  return h * 60 + minute;
+}
+
+/** "10 AM to 5 PM", "9:30 AM–5 PM", "11 AM to 2 PM, 5 to 10 PM", "Open 24 hours", "Closed". */
+export function parseGoogleDayHours(text: string): OpenInterval[] | null {
+  const t = text
+    .replace(/[   ]/g, ' ')
+    .replace(/\s*[–—-]\s*/g, ' to ')
+    .toLowerCase()
+    .replace(/\./g, '')
+    .trim();
+  if (t === 'closed') return [];
+  if (/^open 24 hours$/.test(t)) return [{ open: 0, close: 1440 }];
+  const intervals: OpenInterval[] = [];
+  for (const part of t.split(',')) {
+    const m = part.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s+to\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+    if (!m) return null;
+    const endMer = m[6]!;
+    const end = clock(Number(m[4]), Number(m[5] ?? 0), endMer);
+    let start = clock(Number(m[1]), Number(m[2] ?? 0), m[3] ?? endMer);
+    // "11 to 2 PM" is 11 AM–2 PM: an inherited meridiem that puts the start after the end flips.
+    if (!m[3] && start > end && start - 720 >= 0) start -= 720;
+    const close = end <= start ? end + 1440 : end;
+    if (Number(m[1]) > 12 || Number(m[4]) > 12) return null;
+    intervals.push({ open: start, close });
+  }
+  return intervals;
+}
+
+/** Google's [{ day: 'Monday', hours: '10 AM to 5 PM' }, …] as WeeklyHours, or null if any day is unreadable. */
+export function googleOpeningHours(list: unknown): WeeklyHours | null {
+  if (!Array.isArray(list) || list.length === 0) return null;
+  const week: (OpenInterval[] | undefined)[] = new Array(7).fill(undefined);
+  for (const entry of list) {
+    const e = entry as { day?: unknown; hours?: unknown };
+    const day = typeof e.day === 'string' ? DAY_NAMES.indexOf(e.day.toLowerCase().trim()) : -1;
+    if (day < 0 || typeof e.hours !== 'string') return null;
+    const parsed = parseGoogleDayHours(e.hours);
+    if (!parsed) return null;
+    week[day] = parsed;
+  }
+  if (week.some((d) => d === undefined)) return null;
+  return week as WeeklyHours;
+}
+
+interface GooglePlace {
+  searchString?: unknown;
+  title?: unknown;
+  location?: { lat?: unknown; lng?: unknown };
+  openingHours?: unknown;
+  permanentlyClosed?: unknown;
+  temporarilyClosed?: unknown;
+}
+
+export interface HoursReport {
+  matched: string[];
+  noHours: string[];
+  tooFar: string[];
+  missing: string[];
+}
+
+export function placesToHours(
+  items: unknown[],
+  queries: PlaceQuery[],
+  checkedOn: string,
+): { hours: Record<string, PlaceHoursResult>; report: HoursReport } {
+  const hours: Record<string, PlaceHoursResult> = {};
+  const report: HoursReport = { matched: [], noHours: [], tooFar: [], missing: [] };
+  const source = `Google Maps via Apify, checked ${checkedOn}`;
+  for (const q of queries) {
+    const candidates = items.filter(
+      (i) => typeof (i as GooglePlace).searchString === 'string' && (i as GooglePlace).searchString === q.query,
+    ) as GooglePlace[];
+    if (candidates.length === 0) {
+      report.missing.push(q.id);
+      continue;
+    }
+    const near = candidates.find((c) => {
+      const lat = Number(c.location?.lat);
+      const lng = Number(c.location?.lng);
+      return (
+        Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        distanceKm({ latitude: lat, longitude: lng }, { latitude: q.latitude, longitude: q.longitude }) <= 0.4
+      );
+    });
+    if (!near) {
+      report.tooFar.push(q.id);
+      continue;
+    }
+    if (near.permanentlyClosed === true || near.temporarilyClosed === true) {
+      hours[q.id] = {
+        hours: 'Mo-Su off',
+        source: `Google Maps lists it as ${near.permanentlyClosed === true ? 'permanently' : 'temporarily'} closed, checked ${checkedOn}`,
+      };
+      report.matched.push(q.id);
+      continue;
+    }
+    const weekly = googleOpeningHours(near.openingHours);
+    if (!weekly) {
+      report.noHours.push(q.id);
+      continue;
+    }
+    hours[q.id] = { hours: toOpeningHoursText(weekly), source };
+    report.matched.push(q.id);
+  }
+  return { hours, report };
+}
+
+export function renderHoursModule(hours: Record<string, PlaceHoursResult>, generatedAt: string): string {
+  return `// Generated by server/ingest/sf-hours.ts on ${generatedAt}. Do not edit by hand: re-run \`npm run hours:sf\`.
+import type { PlaceHours } from './sfHours.ts';
+
+export const SF_HOURS_GENERATED_AT: string | null = ${JSON.stringify(generatedAt)};
+
+export const SF_PLACE_HOURS_GENERATED: Record<string, PlaceHours> = ${JSON.stringify(hours, null, 2)};
+`;
+}

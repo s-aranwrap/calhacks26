@@ -111,10 +111,23 @@ export interface Activity {
   /** ISO 8601 instants. Only meaningful for events. */
   startAt?: string;
   endAt?: string;
+  /**
+   * The source gave a date but no clock time (or a multi-day run such as an
+   * exhibition). startAt is local midnight of the first day and endAt the end
+   * of the last day, and times are shown as "time not listed".
+   */
+  allDay?: boolean;
   /** IANA zone used to display event times, e.g. "America/Los_Angeles". */
   timeZone?: string;
-  /** Free-text opening info for evergreen activities, e.g. "Daily, sunrise to sunset". */
+  /**
+   * Opening info for evergreen activities. Either weekly hours in the OSM
+   * subset understood by core/hours.ts ("Mo-Fr 10:00-17:00; Sa off"), which
+   * lets Huddle say "Open now · until 5 PM" and skip closed places, or free
+   * text ("Daily, sunrise to sunset"), which is only displayed.
+   */
   openingHours?: string;
+  /** Where the hours came from and when, e.g. "Google Maps, checked Oct 25, 2026". */
+  openingHoursSource?: string;
   duration?: Duration;
   price?: Price;
   source: ActivitySource;

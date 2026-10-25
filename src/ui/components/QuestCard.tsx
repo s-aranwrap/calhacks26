@@ -10,7 +10,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { assessAvailability } from '@/core/availability';
 import { formatDuration, formatPrice } from '@/core/format';
 import type { Recommendation } from '@/core/recommend';
-import { formatEventWhen } from '@/core/time';
+import { describeOpening } from '@/core/hours';
+import { formatActivityWhen } from '@/core/time';
 import type { Activity, Category, DismissReason } from '@/core/types';
 import { formatDistance } from '@/core/util';
 
@@ -59,11 +60,12 @@ export const DISMISS_REASONS: { reason: DismissReason; label: string }[] = [
 export function whenText(activity: Activity, now: Date): { text: string; icon: IconName; known: boolean } {
   if (activity.kind === 'event') {
     return activity.startAt
-      ? { text: formatEventWhen(activity.startAt, activity.timeZone, now), icon: 'calendar-outline', known: true }
+      ? { text: formatActivityWhen(activity, now), icon: 'calendar-outline', known: !activity.allDay }
       : { text: 'Date not announced', icon: 'calendar-outline', known: false };
   }
-  return activity.openingHours
-    ? { text: activity.openingHours, icon: 'time-outline', known: true }
+  const opening = describeOpening(activity.openingHours, now, activity.timeZone);
+  return opening
+    ? { text: opening.text, icon: 'time-outline', known: true }
     : { text: 'Opening hours unknown', icon: 'time-outline', known: false };
 }
 

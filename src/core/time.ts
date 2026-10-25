@@ -160,6 +160,42 @@ export function formatEventWhen(startIso: string, timeZone: string | undefined, 
   return `${date} · ${time}`;
 }
 
+/**
+ * When-label for any event, including all-day ones whose source gave no time:
+ * "Today · time not listed", "Sat, Nov 8 · time not listed", "On now · through Sun, Nov 2".
+ */
+export function formatActivityWhen(
+  activity: { startAt?: string; endAt?: string; allDay?: boolean; timeZone?: string },
+  now: Date,
+  locale?: string,
+): string {
+  if (!activity.startAt) return 'Date unknown';
+  if (!activity.allDay) return formatEventWhen(activity.startAt, activity.timeZone, now, locale);
+  const start = Date.parse(activity.startAt);
+  const end = Date.parse(activity.endAt ?? '');
+  if (!Number.isFinite(start)) return 'Date unknown';
+  const tz = isValidTimeZone(activity.timeZone) ? activity.timeZone : undefined;
+  const dateLabel = (ms: number) => {
+    try {
+      return new Intl.DateTimeFormat(locale, { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' }).format(
+        ms,
+      );
+    } catch {
+      return new Date(ms).toLocaleDateString();
+    }
+  };
+  const relative = (ms: number) => {
+    const key = dayKey(ms, tz);
+    if (key === dayKey(now.getTime(), tz)) return 'Today';
+    if (key === dayKey(now.getTime() + DAY_MS, tz)) return 'Tomorrow';
+    return dateLabel(ms);
+  };
+  const multiDay = Number.isFinite(end) && dayKey(end, tz) !== dayKey(start, tz);
+  if (!multiDay) return `${relative(start)} · time not listed`;
+  if (start <= now.getTime()) return `On now · through ${dateLabel(end)}`;
+  return `${relative(start)} – ${dateLabel(end)}`;
+}
+
 /** "Checked 3 days ago", "Checked today". */
 export function formatCheckedAgo(iso: string | undefined, now: Date): string | undefined {
   const ms = iso ? Date.parse(iso) : NaN;

@@ -55,6 +55,7 @@ export type ExclusionReason =
   | 'expired'
   | 'date_unknown'
   | 'too_far_ahead'
+  | 'closed'
   | 'unverified'
   | 'already_planned'
   | 'completed'
@@ -139,6 +140,7 @@ const AVAILABILITY_EXCLUSION: Partial<Record<AvailabilityState, ExclusionReason>
   ended: 'expired',
   date_unknown: 'date_unknown',
   too_far_ahead: 'too_far_ahead',
+  closed_now: 'closed',
 };
 
 // ---------------------------------------------------------------------------

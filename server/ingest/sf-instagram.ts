@@ -5,6 +5,7 @@
  *   npm run ingest:sf                       # run Apify, save raw items, write the pack
  *   npm run ingest:sf -- --geocode          # also look up venue coordinates (OpenStreetMap)
  *   npm run ingest:sf -- --from-raw latest  # reprocess the last saved run, no Apify credits used
+ *   npm run ingest:sf -- --ai               # also let Claude read captions (needs ANTHROPIC_API_KEY)
  *
  * Sources and per-source limits live in server/ingest/sf/sources.json. A run
  * that could return more than `maxResultsPerRun` posts is refused unless you
@@ -13,6 +14,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { createAiExtractor, DEFAULT_AI_MODEL } from './aiExtract.ts';
 import { loadServerEnv, parseArgs, redact } from './env.ts';
 import { createGeocoder, SF_BOUNDS } from './geocode.ts';
 import { runInstagramScraper } from './instagram.ts';
@@ -22,6 +24,7 @@ const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const CONFIG = here('./sf/sources.json');
 const RAW_DIR = here('./sf/raw/');
 const GEOCACHE = here('./sf/geocache.json');
+const AI_CACHE = here('./sf/ai-cache.json');
 const PACK = here('../../src/data/packs/sfInstagram.generated.ts');
 
 async function main() {
@@ -92,23 +95,48 @@ async function main() {
       })
     : undefined;
 
+  let ai: ReturnType<typeof createAiExtractor> | undefined;
+  if (flags.ai) {
+    if (!env.anthropicApiKey) throw new Error('--ai needs ANTHROPIC_API_KEY in server/.env (see server/.env.example).');
+    ai = createAiExtractor({
+      apiKey: env.anthropicApiKey,
+      model: env.anthropicModel ?? DEFAULT_AI_MODEL,
+      cacheFile: AI_CACHE,
+      timeZone: config.timeZone,
+    });
+    console.log(
+      `Reading captions with ${env.anthropicModel ?? DEFAULT_AI_MODEL} (answers are cached in server/ingest/sf/ai-cache.json).`,
+    );
+  }
+
   const { records, report } = await postsToRecords(items, config, {
     now,
     ...(geocoder ? { geocode: geocoder.lookup } : {}),
+    ...(ai ? { aiExtract: ai.extract } : {}),
   });
   geocoder?.save();
+  ai?.save();
 
   writeFileSync(PACK, renderPackModule(records, now.toISOString()));
-  console.log(`\n${report.kept} events written to src/data/packs/sfInstagram.generated.ts`);
-  console.log(`Skipped: ${JSON.stringify(report.skipped)}`);
-  console.log(`Per source: ${JSON.stringify(report.perSource)}`);
   console.log(
-    'Posts without exactly one date and a time are skipped on purpose, so roundup posts listing many events are dropped.',
+    `\n${report.kept} events from ${report.postsWithEvents} of ${report.items} posts written to src/data/packs/sfInstagram.generated.ts`,
+  );
+  if (ai) {
+    console.log(
+      `Claude: ${ai.stats.calls} new calls, ${ai.stats.cached} cached, ${ai.stats.failures} failed (rules used instead), ${ai.stats.dropped} events dropped for not matching the caption. ${report.fromAi} events came from Claude.`,
+    );
+  }
+  console.log(`Posts skipped: ${JSON.stringify(report.skipped)}`);
+  console.log(`Events per source: ${JSON.stringify(report.perSource)}`);
+  console.log(
+    'Skip reasons: no_date = no date found; no_time = only a weekday with no time; too_old = already over; ambiguous_date = a roundup without per-event details.',
   );
 }
 
 main().catch((error: unknown) => {
   const env = loadServerEnv();
-  console.error(redact(`Error: ${(error as Error).message}`, env.apifyToken, env.supabaseSecretKey));
+  console.error(
+    redact(`Error: ${(error as Error).message}`, env.apifyToken, env.supabaseSecretKey, env.anthropicApiKey),
+  );
   process.exitCode = 1;
 });

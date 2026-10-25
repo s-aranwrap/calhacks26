@@ -216,23 +216,42 @@ describe('bundled SF pack in the app', () => {
   });
 
   test('every mood gets three suggestions from Union Square with default filters', () => {
-    const catalog = buildPackCatalog(SF_PACK, NOW);
-    for (const mood of ['surprise', 'chill', 'social', 'active', 'creative'] as const) {
-      const result = recommend(
-        catalog,
-        {
-          mood,
-          budget: DEFAULT_PREFERENCES.budget,
-          maxDistanceKm: DEFAULT_PREFERENCES.maxDistanceKm,
-          availableMinutes: DEFAULT_PREFERENCES.availableMinutes,
-          origin: SF_PACK.center,
-          now: NOW,
-        },
-        DEFAULT_PREFERENCES,
-        { feedback: [], adventures: [] },
-      );
-      assert.equal(result.recommendations.length, 3, mood);
+    // Sunday 10 AM and Monday 7 AM.
+    for (const now of [NOW, new Date('2026-10-26T14:00:00Z')]) {
+      const catalog = buildPackCatalog(SF_PACK, now);
+      for (const mood of ['surprise', 'chill', 'social', 'active', 'creative'] as const) {
+        const result = recommend(
+          catalog,
+          {
+            mood,
+            budget: DEFAULT_PREFERENCES.budget,
+            maxDistanceKm: DEFAULT_PREFERENCES.maxDistanceKm,
+            availableMinutes: DEFAULT_PREFERENCES.availableMinutes,
+            origin: SF_PACK.center,
+            now,
+          },
+          DEFAULT_PREFERENCES,
+          { feedback: [], adventures: [] },
+        );
+        assert.equal(result.recommendations.length, 3, `${mood} at ${now.toISOString()}`);
+      }
     }
+  });
+
+  test('late at night, closed places are left out instead of padding the three', () => {
+    const now = new Date('2026-10-28T06:30:00Z'); // Tuesday 11:30 PM
+    const catalog = buildPackCatalog(SF_PACK, now);
+    const result = recommend(
+      catalog,
+      { mood: 'surprise', budget: 'any', maxDistanceKm: null, availableMinutes: null, origin: SF_PACK.center, now },
+      DEFAULT_PREFERENCES,
+      { feedback: [], adventures: [] },
+    );
+    const ids = result.recommendations.map((r) => r.activity.id);
+    for (const closed of ['sf-sfmoma', 'sf-exploratorium', 'sf-cal-academy', 'sf-main-library', 'sf-musee-mecanique']) {
+      assert.ok(!ids.includes(closed), closed);
+    }
+    assert.ok((result.exclusions.closed ?? 0) >= 5);
   });
 
   test('replaces the fictional town and reports the city', async () => {

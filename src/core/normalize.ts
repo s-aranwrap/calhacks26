@@ -51,7 +51,9 @@ export const IMPORT_FIELDS = [
   'start_at',
   'end_at',
   'time_zone',
+  'all_day',
   'opening_hours',
+  'opening_hours_source',
   'duration_min_minutes',
   'duration_max_minutes',
   'duration_certainty',
@@ -298,15 +300,25 @@ export function normalizeActivity(raw: unknown, ctx: NormalizeContext): Normaliz
 
   let startAt: string | undefined;
   let endAt: string | undefined;
+  // All-day events may give bare dates: the start is local midnight and the end the end of the last day.
+  const allDayInput = readBoolean(r.all_day) === true;
+  const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+  const asStart = (v: unknown) =>
+    allDayInput && typeof v === 'string' && DATE_ONLY.test(v.trim()) ? `${v.trim()} 00:00` : v;
+  const asEnd = (v: unknown) =>
+    allDayInput && typeof v === 'string' && DATE_ONLY.test(v.trim()) ? `${v.trim()} 23:59` : v;
   if (r.start_at !== undefined && r.start_at !== '') {
-    const parsed = parseImportedDateTime(r.start_at, timeZone);
+    const parsed = parseImportedDateTime(asStart(r.start_at), timeZone);
     if (parsed.ok) startAt = parsed.iso;
     else warnings.push(`start_at ignored (${parsed.error})`);
   }
   if (r.end_at !== undefined && r.end_at !== '') {
-    const parsed = parseImportedDateTime(r.end_at, timeZone);
+    const parsed = parseImportedDateTime(asEnd(r.end_at), timeZone);
     if (parsed.ok) endAt = parsed.iso;
     else warnings.push(`end_at ignored (${parsed.error})`);
+  } else if (allDayInput && typeof r.start_at === 'string' && DATE_ONLY.test(r.start_at.trim())) {
+    const parsed = parseImportedDateTime(asEnd(r.start_at), timeZone);
+    if (parsed.ok) endAt = parsed.iso;
   }
   const kind: ActivityKind = explicitKind ?? (r.start_at ? 'event' : 'evergreen');
   if (kind === 'evergreen' && (startAt || endAt)) {
@@ -452,6 +464,8 @@ export function normalizeActivity(raw: unknown, ctx: NormalizeContext): Normaliz
     });
 
   const openingHours = kind === 'evergreen' ? readString(r.opening_hours, 160) : undefined;
+  const openingHoursSource = openingHours ? readString(r.opening_hours_source, 120) : undefined;
+  const allDay = kind === 'event' && allDayInput && startAt !== undefined;
   const sourceLabel = readString(r.source_label, 120);
   const whatToExpect = readText(r.what_to_expect, 600);
   const whyTry = readText(r.why_try, 400);
@@ -468,8 +482,10 @@ export function normalizeActivity(raw: unknown, ctx: NormalizeContext): Normaliz
     ...(venue ? { venue } : {}),
     ...(startAt ? { startAt } : {}),
     ...(endAt ? { endAt } : {}),
+    ...(allDay ? { allDay: true } : {}),
     ...(timeZone ? { timeZone } : {}),
     ...(openingHours ? { openingHours } : {}),
+    ...(openingHoursSource ? { openingHoursSource } : {}),
     ...(duration ? { duration } : {}),
     ...(price ? { price } : {}),
     source: {

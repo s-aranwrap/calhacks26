@@ -4,11 +4,21 @@
  * something is still on: only a verified, recently checked record counts as
  * confirmed.
  */
+import { formatClock, openStatus, parsedHours } from './hours.ts';
 import type { Activity } from './types.ts';
 import { DAY_MS, MINUTE_MS, parseTime } from './util.ts';
 
 export type AvailabilityState =
-  'evergreen' | 'upcoming' | 'happening_now' | 'ended' | 'sold_out' | 'cancelled' | 'date_unknown' | 'too_far_ahead';
+  | 'evergreen'
+  | 'upcoming'
+  | 'happening_now'
+  | 'ended'
+  | 'sold_out'
+  | 'cancelled'
+  | 'date_unknown'
+  | 'too_far_ahead'
+  /** Evergreen place whose known weekly hours say it's closed for the rest of today. */
+  | 'closed_now';
 
 export interface AvailabilityAssessment {
   /** Can this be recommended as something to do now / soon? */
@@ -29,6 +39,8 @@ export interface AvailabilityOptions {
   staleAfterDays?: number;
   /** An ongoing event with less time left than this is treated as over. */
   minRemainingMinutes?: number;
+  /** A place closing sooner than this is treated as closed for today. */
+  minOpenMinutes?: number;
 }
 
 const DEMO_LABEL = 'Sample listing for the demo, not a real booking';
@@ -38,6 +50,7 @@ const DEFAULTS: Required<AvailabilityOptions> = {
   defaultEventMinutes: 180,
   staleAfterDays: 14,
   minRemainingMinutes: 30,
+  minOpenMinutes: 45,
 };
 
 /** Best-known end instant of an event, or undefined if it has no start. */
@@ -88,6 +101,30 @@ export function assessAvailability(
   }
 
   if (activity.kind === 'evergreen') {
+    const hours = parsedHours(activity.openingHours);
+    if (hours) {
+      const status = openStatus(hours, now, activity.timeZone);
+      if (status.state === 'closed_today' || status.state === 'always_closed') {
+        return { viable: false, state: 'closed_now', confirmed: false, label: status.label };
+      }
+      if (status.state === 'open' && (status.minutesLeft ?? 0) < opts.minOpenMinutes) {
+        const closesAt = formatClock(wallMinutes(now, activity.timeZone) + (status.minutesLeft ?? 0));
+        return {
+          viable: false,
+          state: 'closed_now',
+          confirmed: false,
+          label: `Closes at ${closesAt}, too soon to go today`,
+        };
+      }
+      return {
+        viable: true,
+        state: 'evergreen',
+        confirmed,
+        label: freshlyVerified
+          ? `${status.label}. Hours verified recently`
+          : `${status.label}. Hours not verified, so check before you go`,
+      };
+    }
     return {
       viable: true,
       state: 'evergreen',
@@ -127,4 +164,19 @@ function eventState(
     return { viable: false, state: 'too_far_ahead', label: 'Too far ahead to plan yet' };
   if (start <= nowMs) return { viable: true, state: 'happening_now', label: 'Happening now' };
   return { viable: true, state: 'upcoming', label: 'Upcoming' };
+}
+
+function wallMinutes(now: Date, timeZone: string | undefined): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      ...(timeZone ? { timeZone } : {}),
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(now);
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+    return (get('hour') % 24) * 60 + get('minute');
+  } catch {
+    return now.getHours() * 60 + now.getMinutes();
+  }
 }

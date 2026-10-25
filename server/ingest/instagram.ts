@@ -35,7 +35,8 @@ export interface InstagramScraperInput {
 export interface ApifyRunOptions {
   token: string;
   actorId: string;
-  input: InstagramScraperInput;
+  /** Actor input; the Instagram shape by default, any JSON object for other actors. */
+  input: InstagramScraperInput | Record<string, unknown>;
   fetchImpl?: typeof fetch;
   maxRetries?: number;
   /** Seconds the actor may run; the synchronous endpoint waits at most 300 s. */
@@ -61,6 +62,11 @@ const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(r
  * from any error text.
  */
 export async function runInstagramScraper(options: ApifyRunOptions): Promise<unknown[]> {
+  return runApifyActor(options);
+}
+
+/** Runs any Apify actor synchronously and returns its dataset items. */
+export async function runApifyActor(options: ApifyRunOptions): Promise<unknown[]> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const sleep = options.sleep ?? defaultSleep;
   const maxRetries = options.maxRetries ?? 3;

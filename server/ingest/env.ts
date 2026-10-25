@@ -15,6 +15,11 @@ export interface ServerEnv {
   supabaseSecretKey?: string;
   apifyToken?: string;
   apifyActorId: string;
+  /** Optional: Claude API key for `--ai` caption reading. */
+  anthropicApiKey?: string;
+  anthropicModel?: string;
+  /** Apify actor used by `npm run hours:sf`. */
+  apifyPlacesActorId: string;
 }
 
 let loaded = false;
@@ -32,6 +37,9 @@ export function loadServerEnv(): ServerEnv {
     ...(secret ? { supabaseSecretKey: secret } : {}),
     ...(env.APIFY_API_TOKEN ? { apifyToken: env.APIFY_API_TOKEN } : {}),
     apifyActorId: env.APIFY_INSTAGRAM_ACTOR_ID || 'apify~instagram-scraper',
+    ...(env.ANTHROPIC_API_KEY ? { anthropicApiKey: env.ANTHROPIC_API_KEY } : {}),
+    ...(env.ANTHROPIC_MODEL ? { anthropicModel: env.ANTHROPIC_MODEL } : {}),
+    apifyPlacesActorId: env.APIFY_PLACES_ACTOR_ID || 'compass~crawler-google-places',
   };
 }
 

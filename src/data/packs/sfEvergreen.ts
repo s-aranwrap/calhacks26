@@ -4,9 +4,10 @@
  * pulled in.
  *
  * Accuracy rules for this file:
- * - Only widely known, stable facts. No opening hours or ticket prices are
- *   given: those change, and the app shows "unknown, check before you go"
- *   instead of a guess.
+ * - Only widely known, stable facts. Ticket prices are left out because they
+ *   change. Opening hours live in sfHours.ts (researched, with sources) and
+ *   sfHours.generated.ts (from `npm run hours:sf`), and are merged in by
+ *   packs/index.ts.
  * - "Free" is only set for public parks, trails, streets and places with
  *   long-standing free entry.
  * - Coordinates are approximate (good enough for distance estimates).
@@ -23,6 +24,7 @@ const base = {
   verification_status: 'unverified',
   duration_certainty: 'estimated',
   price_certainty: 'estimated',
+  time_zone: 'America/Los_Angeles',
 } as const;
 
 const NPS_GGNRA = 'https://www.nps.gov/goga/';
