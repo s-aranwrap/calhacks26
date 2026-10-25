@@ -1,1 +1,287 @@
-{}
+{
+  "alamo square": {
+    "latitude": 37.7763599,
+    "longitude": -122.4347,
+    "displayName": "Alamo Square, Western Addition, San Francisco, California, 94117, United States"
+  },
+  "sf zoo": {
+    "latitude": 37.7361341,
+    "longitude": -122.5046617,
+    "displayName": "SF ZOO (Wawona Street & 46th Avenue), Wawona Street, Parkside, San Francisco, California, 94166, United States"
+  },
+  "cow palace": {
+    "latitude": 37.7061821,
+    "longitude": -122.4202102,
+    "displayName": "Cow Palace, Daly City, San Mateo County, California, United States"
+  },
+  "exploratorium": {
+    "latitude": 37.8008982,
+    "longitude": -122.3985255,
+    "displayName": "Exploratorium, The Embarcadero, Telegraph Hill, Financial District, San Francisco, California, 94111, United States"
+  },
+  "pier 15, exploratorium": null,
+  "sfmoma": {
+    "latitude": 37.785915,
+    "longitude": -122.4007359,
+    "displayName": "San Francisco Museum of Modern Art, 151, 3rd Street, South of Market, Financial District, San Francisco, California, 94103, United States"
+  },
+  "california academy of sciences": {
+    "latitude": 37.7698235,
+    "longitude": -122.4660971,
+    "displayName": "California Academy of Sciences, 55, Music Concourse Drive, Inner Richmond, Richmond District, San Francisco, California, 94118, United States"
+  },
+  "hello stranger": null,
+  "cry baby": null,
+  "springstowne library": null,
+  "1315 8th avenue": {
+    "latitude": 37.7637407,
+    "longitude": -122.465417,
+    "displayName": "1315, 8th Avenue, Inner Sunset, Richmond District, San Francisco, California, 94122, United States"
+  },
+  "the faight, sf": {
+    "latitude": 37.7720643,
+    "longitude": -122.4299862,
+    "displayName": "The Faight Collective, 473A, Haight Street, Lower Haight, Western Addition, San Francisco, California, 94117, United States"
+  },
+  "kelly's cove, ocean be...": null,
+  "grizzly peak vista point...": null,
+  "monkey brains in sf": null,
+  "bernal heights, san francisco": {
+    "latitude": 37.7410008,
+    "longitude": -122.4142136,
+    "displayName": "Bernal Heights, San Francisco, California, United States"
+  },
+  "commonwealth club world affairs": null,
+  "legion of honor": {
+    "latitude": 37.7845556,
+    "longitude": -122.500962,
+    "displayName": "Legion of Honor, 100, Legion of Honor Drive, San Francisco, California, 94121, United States"
+  },
+  "de young": {
+    "latitude": 37.7714976,
+    "longitude": -122.4690915,
+    "displayName": "de Young Museum, 50, Hagiwara Tea Garden Drive, Inner Richmond, Richmond District, San Francisco, California, 94118, United States"
+  },
+  "the chapel 777 valencia st, san francisco": {
+    "latitude": 37.7604879,
+    "longitude": -122.421201,
+    "displayName": "The Chapel, 777, Valencia Street, Mission, San Francisco, California, 94110, United States"
+  },
+  "de young museum": {
+    "latitude": 37.7714976,
+    "longitude": -122.4690915,
+    "displayName": "de Young Museum, 50, Hagiwara Tea Garden Drive, Inner Richmond, Richmond District, San Francisco, California, 94118, United States"
+  },
+  "the chapel": {
+    "latitude": 37.7604879,
+    "longitude": -122.421201,
+    "displayName": "The Chapel, 777, Valencia Street, Mission, San Francisco, California, 94110, United States"
+  },
+  "gray area": {
+    "latitude": 37.7544062,
+    "longitude": -122.4185113,
+    "displayName": "Gray Area, 2665, Mission Street, Mission, San Francisco, California, 94110, United States"
+  },
+  "san francisco's waterfront": {
+    "latitude": 37.8169861,
+    "longitude": -122.3723309,
+    "displayName": "Waterfront Plaza, San Francisco, California, United States"
+  },
+  "gray area, 2665 mission st, san francisco": {
+    "latitude": 37.7544062,
+    "longitude": -122.4185113,
+    "displayName": "Gray Area, 2665, Mission Street, Mission, San Francisco, California, 94110, United States"
+  },
+  "the chapel san francisco": {
+    "latitude": 37.7604879,
+    "longitude": -122.421201,
+    "displayName": "The Chapel, 777, Valencia Street, Mission, San Francisco, California, 94110, United States"
+  },
+  "joe henderson lab, sfjazz center": null,
+  "golden gate park bandshell": null,
+  "bandshell, music concourse dr., golden gate park, san francisco": null,
+  "miner auditorium": {
+    "latitude": 37.7764045,
+    "longitude": -122.421694,
+    "displayName": "Robert N. Miner Auditorium, Linden Street, Hayes Valley, Civic Center, San Francisco, California, 94102, United States"
+  },
+  "joe henderson lab at sfjazz": null,
+  "venues across san francisco": null,
+  "the bay area": {
+    "latitude": 37.7881157,
+    "longitude": -122.3911543,
+    "displayName": "The Bay Area Metro Center, 375, Beale Street, Rincon Hill, Financial District, San Francisco, California, 94105, United States"
+  },
+  "main library": {
+    "latitude": 37.7791882,
+    "longitude": -122.4157831,
+    "displayName": "San Francisco Public Library - Main Library, 100, Larkin Street, Civic Center, San Francisco, California, 94102, United States"
+  },
+  "sfjazz": {
+    "latitude": 37.7763779,
+    "longitude": -122.4215694,
+    "displayName": "SFJAZZ Center, 201, Franklin Street, Hayes Valley, Civic Center, San Francisco, California, 94102, United States"
+  },
+  "joe henderson lab": {
+    "latitude": 37.7765336,
+    "longitude": -122.4214196,
+    "displayName": "Joe Henderson Lab, Linden Street, Hayes Valley, Civic Center, San Francisco, California, 94102, United States"
+  },
+  "miner auditorium, sfjazz center": null,
+  "san francisco county fair building": {
+    "latitude": 37.7665935,
+    "longitude": -122.4672772,
+    "displayName": "County Fair Building, 1199, 9th Avenue, Inner Sunset, Richmond District, San Francisco, California, 94122, United States"
+  },
+  "rickshaw stop": {
+    "latitude": 37.7759904,
+    "longitude": -122.4204754,
+    "displayName": "Rickshaw Stop, 155, Fell Street, Hayes Valley, Civic Center, San Francisco, California, 94102, United States"
+  },
+  "randall museum": {
+    "latitude": 37.7643981,
+    "longitude": -122.4383671,
+    "displayName": "Randall Museum, 199, Museum Way, Castro District, Mission, San Francisco, California, 94114, United States"
+  },
+  "sf botanical garden": {
+    "latitude": 37.7673593,
+    "longitude": -122.4696777,
+    "displayName": "San Francisco Botanical Garden, 1199, Richmond District, San Francisco, California, 94122, United States"
+  },
+  "gg park bandshell": null,
+  "willie “woo woo” wong playground": {
+    "latitude": 37.7935538,
+    "longitude": -122.4070968,
+    "displayName": "Willie “Woo Woo” Wong Playground, Hang Ah Alley;Pagoda Alley, Chinatown, San Francisco, California, 94108, United States"
+  },
+  "noe valley town square": {
+    "latitude": 37.7513831,
+    "longitude": -122.4289801,
+    "displayName": "Noe Valley Town Square, Noe Valley, Mission, San Francisco, California, United States"
+  },
+  "rickshawstop": null,
+  "panhandle park": {
+    "latitude": 37.7724029,
+    "longitude": -122.4469588,
+    "displayName": "Panhandle, San Francisco, California, United States"
+  },
+  "ybca": {
+    "latitude": 37.7852456,
+    "longitude": -122.4011543,
+    "displayName": "Blue Shield of California Theater at YBCA, 3rd Street, South of Market, Financial District, San Francisco, California, 94105, United States"
+  },
+  "duboce park upper lawn": null,
+  "the golden mile at jfk promenade, golden gate park": null,
+  "san francisco botanical garden": {
+    "latitude": 37.7673593,
+    "longitude": -122.4696777,
+    "displayName": "San Francisco Botanical Garden, 1199, Richmond District, San Francisco, California, 94122, United States"
+  },
+  "yerba buena center for the arts": {
+    "latitude": 37.785096,
+    "longitude": -122.4012524,
+    "displayName": "Yerba Buena Center for the Arts, 3rd Street, South of Market, Financial District, San Francisco, California, 94105, United States"
+  },
+  "700 alemany blvd": {
+    "latitude": 37.7331059,
+    "longitude": -122.4197222,
+    "displayName": "Alemany Farm, 700, Alemany Boulevard, St. Mary's Park, Portola, San Francisco, California, 94110, United States"
+  },
+  "de young museum, san francisco": {
+    "latitude": 37.7714976,
+    "longitude": -122.4690915,
+    "displayName": "de Young Museum, 50, Hagiwara Tea Garden Drive, Inner Richmond, Richmond District, San Francisco, California, 94118, United States"
+  },
+  "the independent": {
+    "latitude": 37.7755281,
+    "longitude": -122.437641,
+    "displayName": "The Independent, 628, Divisadero Street, Western Addition, San Francisco, California, 94117, United States"
+  },
+  "the chapel sf": {
+    "latitude": 37.7604879,
+    "longitude": -122.421201,
+    "displayName": "The Chapel, 777, Valencia Street, Mission, San Francisco, California, 94110, United States"
+  },
+  "@ybca 701 mission street, san francisco": null,
+  "bill graham civic auditorium": {
+    "latitude": 37.7780501,
+    "longitude": -122.4173077,
+    "displayName": "Bill Graham Civic Auditorium, 99, Grove Street, Civic Center, San Francisco, California, 94102, United States"
+  },
+  "grace cathedral": {
+    "latitude": 37.7918211,
+    "longitude": -122.4134968,
+    "displayName": "Grace Cathedral, The Great Stairs at Grace Cathedral, Lower Nob Hill, Nob Hill, San Francisco, California, 94108, United States"
+  },
+  "yerba buena gardens": {
+    "latitude": 37.78465,
+    "longitude": -122.4023448,
+    "displayName": "Yerba Buena Gardens, 750, Financial District, San Francisco, California, 94103, United States"
+  },
+  "golden gate btwn. larkin and jones, san francisco": null,
+  "the presidio": {
+    "latitude": 37.7987926,
+    "longitude": -122.4645799,
+    "displayName": "Presidio of San Francisco, San Francisco, California, United States"
+  },
+  "garden for the environment": {
+    "latitude": 37.7591001,
+    "longitude": -122.4635931,
+    "displayName": "Garden for the Environment, 1590, Inner Sunset, San Francisco, California, 94122, United States"
+  },
+  "omca": null,
+  "curio bar @ the chapel": null,
+  "oakland museum of california": null,
+  "walnut creek": {
+    "latitude": 37.7923996,
+    "longitude": -122.3939328,
+    "displayName": "Car Pool Pickups to Walnut Creek, Pleasant Hill, Concord, Orinda, Lafayette, 100, Spear Street, Financial District, San Francisco, California, 94105, United States"
+  },
+  "chase center": {
+    "latitude": 37.7679001,
+    "longitude": -122.3874223,
+    "displayName": "Chase Center, 1, Warriors Way, Mission Bay, San Francisco, California, 94158, United States"
+  },
+  "clubhouse & greens (320 bowling green drive) in golden gate park": null,
+  "atlanta": null,
+  "asian art museum": {
+    "latitude": 37.780315,
+    "longitude": -122.4159922,
+    "displayName": "Asian Art Museum of San Francisco, 200, Larkin Street, Civic Center, San Francisco, California, 94102, United States"
+  },
+  "the castro": {
+    "latitude": 37.7608561,
+    "longitude": -122.434957,
+    "displayName": "Castro District, Mission, San Francisco, California, 94114, United States"
+  },
+  "presidio officers' club": {
+    "latitude": 37.797459,
+    "longitude": -122.4590735,
+    "displayName": "Presidio Officers' Club, 50, Moraga Avenue, Richmond District, San Francisco, California, 94129, United States"
+  },
+  "sports basement": {
+    "latitude": 37.8028588,
+    "longitude": -122.4592646,
+    "displayName": "Sports Basement, 610, Mason Street, San Francisco, California, 94129, United States"
+  },
+  "outpost meadow": {
+    "latitude": 37.8033914,
+    "longitude": -122.4581084,
+    "displayName": "Outpost Meadow, San Francisco, California, United States"
+  },
+  "presidio tunnel tops": {
+    "latitude": 37.8028988,
+    "longitude": -122.4559106,
+    "displayName": "Presidio Tunnel Tops, 210, San Francisco, California, 94129, United States"
+  },
+  "presidio": {
+    "latitude": 37.7987926,
+    "longitude": -122.4645799,
+    "displayName": "Presidio of San Francisco, San Francisco, California, United States"
+  },
+  "ritual coffee": {
+    "latitude": 37.793075,
+    "longitude": -122.3997743,
+    "displayName": "Ritual Coffee, 295, California Street, Financial District, San Francisco, California, 94111, United States"
+  }
+}

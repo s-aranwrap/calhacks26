@@ -26,9 +26,14 @@ export function CatalogNotice() {
   const pack = catalog.cityPack;
   if (pack) {
     const fromCenter = origin?.latitude === pack.center.latitude && origin.longitude === pack.center.longitude;
+    const updated = formatCheckedAgo(pack.eventsUpdatedAt ?? undefined, new Date())?.replace('Checked', 'updated');
+    const events =
+      pack.instagramEvents > 0
+        ? `${pack.instagramEvents} upcoming events from Instagram${updated ? ` (${updated})` : ''}, shown first, plus well-known places.`
+        : 'No upcoming Instagram events loaded yet, so you’re seeing well-known places. Run npm run ingest:sf to add some.';
     return (
       <Notice tone="info" icon="map-outline">
-        {`${pack.city} picks: well-known places plus events found on Instagram. These aren’t verified yet, so check the post before you go.${
+        {`${pack.city}: ${events} Nothing here is verified yet, so check the post before you go.${
           fromCenter ? ` Distances are from ${pack.centerLabel} until you share your location in Settings.` : ''
         }`}
       </Notice>

@@ -215,3 +215,70 @@ export function instagramPostToCandidate(
   const reviewHints = caption ? reviewHintsFromCaption(caption) : [];
   return { ok: true, candidate: { record, reviewHints, raw: item } };
 }
+
+export interface ApifyAsyncOptions {
+  token: string;
+  actorId: string;
+  input: Record<string, unknown>;
+  /** Give up after this many seconds in total. */
+  maxWaitSecs?: number;
+  fetchImpl?: typeof fetch;
+  onProgress?: (status: string, elapsedSecs: number) => void;
+}
+
+/**
+ * Starts an actor run and waits for it, for actors that can take longer than
+ * the 300 s the synchronous endpoint allows (the Google Maps scraper often does).
+ */
+export async function runApifyActorAsync(options: ApifyAsyncOptions): Promise<unknown[]> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const maxWait = options.maxWaitSecs ?? 900;
+  const headers = { Authorization: `Bearer ${options.token}`, 'Content-Type': 'application/json' };
+  const call = async (url: string, init: RequestInit = {}): Promise<unknown> => {
+    let response: Response;
+    try {
+      response = await fetchImpl(url, { ...init, headers });
+    } catch (error) {
+      throw new ApifyError(redact(`Could not reach Apify: ${(error as Error).message}`, options.token));
+    }
+    if (!response.ok) {
+      const body = (await response.text().catch(() => '')).slice(0, 300);
+      const hint =
+        response.status === 401
+          ? ' Check APIFY_API_TOKEN.'
+          : response.status === 404
+            ? ' Check the actor name (APIFY_PLACES_ACTOR_ID).'
+            : '';
+      throw new ApifyError(
+        redact(`Apify request failed (HTTP ${response.status}).${hint} ${body}`, options.token),
+        response.status,
+      );
+    }
+    return response.json();
+  };
+
+  const started = (await call(`https://api.apify.com/v2/acts/${encodeURIComponent(options.actorId)}/runs`, {
+    method: 'POST',
+    body: JSON.stringify(options.input),
+  })) as { data?: { id?: string; status?: string; defaultDatasetId?: string } };
+  let run = started.data;
+  if (!run?.id) throw new ApifyError('Apify did not return a run ID');
+  const begin = Date.now();
+  while (run && ['READY', 'RUNNING'].includes(run.status ?? '')) {
+    const elapsed = Math.round((Date.now() - begin) / 1000);
+    if (elapsed > maxWait)
+      throw new ApifyError(`The run is still going after ${maxWait} s. Check it in Apify Console (run ${run.id}).`);
+    options.onProgress?.(run.status ?? 'RUNNING', elapsed);
+    // waitForFinish holds the request open for up to 60 s, so this loop is cheap.
+    run = ((await call(`https://api.apify.com/v2/actor-runs/${run.id}?waitForFinish=60`)) as { data?: typeof run })
+      .data;
+  }
+  if (run?.status !== 'SUCCEEDED') {
+    throw new ApifyError(
+      `The Apify run ended with status ${run?.status ?? 'unknown'}. See run ${run?.id ?? ''} in Apify Console for the log.`,
+    );
+  }
+  const items = await call(`https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?clean=true&format=json`);
+  if (!Array.isArray(items)) throw new ApifyError('Apify returned something other than a list of items');
+  return items;
+}

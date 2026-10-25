@@ -5,7 +5,8 @@
  *   npm run ingest:sf                       # run Apify, save raw items, write the pack
  *   npm run ingest:sf -- --geocode          # also look up venue coordinates (OpenStreetMap)
  *   npm run ingest:sf -- --from-raw latest  # reprocess the last saved run, no Apify credits used
- *   npm run ingest:sf -- --ai               # also let Claude read captions (needs ANTHROPIC_API_KEY)
+ *   npm run ingest:sf -- --ai               # also let an AI model read captions (free with GEMINI_API_KEY)
+ *   npm run ingest:sf -- --images           # --ai plus the post images (flyers); best on a fresh run
  *
  * Sources and per-source limits live in server/ingest/sf/sources.json. A run
  * that could return more than `maxResultsPerRun` posts is refused unless you
@@ -14,10 +15,11 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { createAiExtractor, DEFAULT_AI_MODEL } from './aiExtract.ts';
+import { createAiExtractor } from './aiExtract.ts';
+import { providerFromEnv } from './aiProviders.ts';
 import { loadServerEnv, parseArgs, redact } from './env.ts';
 import { createGeocoder, SF_BOUNDS } from './geocode.ts';
-import { runInstagramScraper } from './instagram.ts';
+import { runApifyActorAsync } from './instagram.ts';
 import { maxResults, postsToRecords, renderPackModule, type SfSourcesConfig } from './sfPipeline.ts';
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -68,9 +70,10 @@ async function main() {
     items = [];
     for (const [limit, urls] of byLimit) {
       console.log(`Running ${env.apifyActorId} for ${urls.length} URL(s), up to ${limit} posts each…`);
-      const batch = await runInstagramScraper({
+      const batch = await runApifyActorAsync({
         token: env.apifyToken,
         actorId: env.apifyActorId,
+        onProgress: (status, secs) => console.log(`  ${status.toLowerCase()}… ${secs}s`),
         input: {
           directUrls: urls,
           resultsType: 'posts',
@@ -96,23 +99,21 @@ async function main() {
     : undefined;
 
   let ai: ReturnType<typeof createAiExtractor> | undefined;
-  if (flags.ai) {
-    if (!env.anthropicApiKey) throw new Error('--ai needs ANTHROPIC_API_KEY in server/.env (see server/.env.example).');
+  const useAi = Boolean(flags.ai || flags.images);
+  if (useAi) {
     ai = createAiExtractor({
-      apiKey: env.anthropicApiKey,
-      model: env.anthropicModel ?? DEFAULT_AI_MODEL,
+      provider: providerFromEnv(env),
       cacheFile: AI_CACHE,
       timeZone: config.timeZone,
     });
-    console.log(
-      `Reading captions with ${env.anthropicModel ?? DEFAULT_AI_MODEL} (answers are cached in server/ingest/sf/ai-cache.json).`,
-    );
+    await ai.prepare();
+    console.log(`Reading posts with ${ai.label} (answers are cached in server/ingest/sf/ai-cache.json).`);
   }
 
   const { records, report } = await postsToRecords(items, config, {
     now,
     ...(geocoder ? { geocode: geocoder.lookup } : {}),
-    ...(ai ? { aiExtract: ai.extract } : {}),
+    ...(ai ? { aiExtract: ai.extract, readImages: Boolean(flags.images) } : {}),
   });
   geocoder?.save();
   ai?.save();
@@ -123,7 +124,7 @@ async function main() {
   );
   if (ai) {
     console.log(
-      `Claude: ${ai.stats.calls} new calls, ${ai.stats.cached} cached, ${ai.stats.failures} failed (rules used instead), ${ai.stats.dropped} events dropped for not matching the caption. ${report.fromAi} events came from Claude.`,
+      `${ai.label}: ${ai.stats.calls} new calls (${ai.stats.images} with an image), ${ai.stats.cached} cached, ${ai.stats.failures} failed (rules used instead), ${ai.stats.dropped} events dropped for not matching the caption. ${report.fromAi} events came from the AI.${ai.stats.quotaHit ? ' The free quota ran out partway: run the same command again tomorrow and it continues where it stopped.' : ''}`,
     );
   }
   console.log(`Posts skipped: ${JSON.stringify(report.skipped)}`);
@@ -136,7 +137,13 @@ async function main() {
 main().catch((error: unknown) => {
   const env = loadServerEnv();
   console.error(
-    redact(`Error: ${(error as Error).message}`, env.apifyToken, env.supabaseSecretKey, env.anthropicApiKey),
+    redact(
+      `Error: ${(error as Error).message}`,
+      env.apifyToken,
+      env.supabaseSecretKey,
+      env.anthropicApiKey,
+      env.geminiApiKey,
+    ),
   );
   process.exitCode = 1;
 });

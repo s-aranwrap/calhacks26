@@ -225,7 +225,7 @@ describe('dates and times', () => {
     const bad = ok({ title: 'x', start_at: '2026-11-07T18:00:00Z', end_at: '2026-11-07T17:00:00Z' }).activity;
     assert.equal(bad.endAt, undefined);
     const good = ok({ title: 'x', start_at: '2026-11-07T18:00:00Z', end_at: '2026-11-07T20:30:00Z' }).activity;
-    assert.deepEqual(good.duration, { minMinutes: 150, certainty: 'estimated' });
+    assert.deepEqual(good.duration, { minMinutes: 150, certainty: 'estimated', basis: 'event_window' });
   });
 
   test('evergreen activities ignore event times but keep opening hours', () => {

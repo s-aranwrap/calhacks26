@@ -8,6 +8,7 @@
  * Network problems never block discovery. They only change the banner the
  * user sees ("Showing saved copy from Tuesday").
  */
+import { isExpired } from '../core/availability.ts';
 import { dedupeActivities } from '../core/dedupe.ts';
 import type { ActivityRepository, UserStore } from '../core/ports.ts';
 import type { Activity, GeoPoint } from '../core/types.ts';
@@ -25,7 +26,14 @@ export interface CatalogState {
   cachedAt?: string;
   importedCount: number;
   /** Set when a bundled city pack (e.g. San Francisco) is part of the catalog. */
-  cityPack?: { city: string; center: GeoPoint; centerLabel: string; eventsUpdatedAt: string | null };
+  cityPack?: {
+    city: string;
+    center: GeoPoint;
+    centerLabel: string;
+    eventsUpdatedAt: string | null;
+    /** Upcoming events from Instagram in the catalog, so the app can say whether any arrived. */
+    instagramEvents: number;
+  };
   loadedAt: string;
 }
 
@@ -84,6 +92,9 @@ export async function loadCatalog(deps: CatalogDeps): Promise<CatalogState> {
             center: deps.cityPack.pack.center,
             centerLabel: deps.cityPack.pack.centerLabel,
             eventsUpdatedAt: deps.cityPack.pack.eventsUpdatedAt,
+            instagramEvents: combined.filter(
+              (a) => a.source.platform === 'instagram' && a.kind === 'event' && !isExpired(a, now()),
+            ).length,
           },
         }
       : {}),

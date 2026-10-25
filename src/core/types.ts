@@ -87,6 +87,12 @@ export interface Duration {
   minMinutes: number;
   maxMinutes?: number;
   certainty: Certainty;
+  /**
+   * "event_window": worked out from an event's start and end. A 7–10 PM show
+   * or a 10 AM–2 PM market doesn't mean you must stay the whole time, so this
+   * kind never rules an event out for "I only have 2 hours".
+   */
+  basis?: 'stated' | 'event_window';
 }
 
 /** 0 = none, 1 = some, 2 = a lot. Optional metadata; missing factors are inferred. */

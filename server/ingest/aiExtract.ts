@@ -1,78 +1,105 @@
 /**
- * Optional: reads events out of Instagram captions with Claude, for the posts
- * the rule-based reader can't handle well (chatty captions, unusual date
- * formats, roundups with no consistent layout).
+ * Optional: reads events out of Instagram posts with an AI model, for the
+ * posts the rule-based reader can't handle well (chatty captions, unusual
+ * date formats, roundups with no consistent layout, dates only on a flyer).
  *
- * Turned on with `npm run ingest:sf -- --ai` and ANTHROPIC_API_KEY in
- * server/.env. Runs only on your computer, never in the app.
+ * Turned on with `npm run ingest:sf -- --ai` (or `--images`). The service is
+ * chosen in server/.env; see aiProviders.ts. The default, Gemini's free tier,
+ * costs nothing. Runs only on your computer, never in the app.
  *
  * Guardrails, because a model can be confidently wrong:
- *  - it must quote the caption text each date came from, and an event whose
- *    quote isn't really in the caption is dropped;
+ *  - it must quote the text each date came from, and an event whose quote
+ *    isn't really in the caption is dropped (image quotes are only accepted
+ *    when an image was actually sent, and are marked as such);
  *  - dates, times and prices are validated like any imported record;
  *  - nothing it says can mark a record verified;
- *  - answers are cached per caption, so re-running costs nothing;
+ *  - answers are cached per caption, so re-running costs nothing and a run
+ *    stopped by a free daily limit picks up where it left off;
  *  - any failure falls back to the rule-based reader for that post.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
+import { QuotaError, type AiImage, type AiProvider } from './aiProviders.ts';
 import type { CaptionEvent } from './extractEvent.ts';
 
 export interface AiExtractorOptions {
-  apiKey: string;
-  model?: string;
+  provider: AiProvider;
   /** JSON file used to cache answers between runs. */
   cacheFile?: string;
+  /** Used to download post images. */
   fetchImpl?: typeof fetch;
   timeZone?: string;
-  maxRetries?: number;
   sleep?: (ms: number) => Promise<void>;
 }
 
-export interface AiExtractor {
-  /** Events in the caption, or null if the model couldn't be used (the caller falls back to rules). */
-  extract(caption: string, postedAtIso: string, now: Date): Promise<CaptionEvent[] | null>;
-  save(): void;
-  stats: { calls: number; cached: number; failures: number; dropped: number };
+export interface AiExtractOptions {
+  /**
+   * The post's image (Apify's displayUrl). Many event posts put the date and
+   * venue on a flyer and write only "link in bio" in the caption, so the model
+   * looks at the image too. Instagram image links expire after a few days, so
+   * this works on fresh runs; an expired link falls back to the caption only.
+   */
+  imageUrl?: string;
 }
 
-export const DEFAULT_AI_MODEL = 'claude-haiku-5-5';
-const PROMPT_VERSION = 2;
+export interface AiStats {
+  calls: number;
+  cached: number;
+  failures: number;
+  dropped: number;
+  images: number;
+  /** Set when the service's quota ran out; later posts used the rules. */
+  quotaHit: boolean;
+}
 
-const TOOL = {
-  name: 'record_events',
-  description: 'Record every attendable event the caption announces. Use an empty list when there are none.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      events: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            title: { type: 'string', description: 'Short event name, max 80 characters, in the caption’s words.' },
-            venue: { type: ['string', 'null'], description: 'Venue or place name as written, or null.' },
-            start_date: { type: 'string', description: 'YYYY-MM-DD' },
-            end_date: { type: ['string', 'null'], description: 'YYYY-MM-DD for multi-day runs, else null.' },
-            start_time: { type: ['string', 'null'], description: '24h HH:MM if a time is written, else null.' },
-            end_time: { type: ['string', 'null'], description: '24h HH:MM if written, else null.' },
-            is_free: { type: ['boolean', 'null'] },
-            price_min: { type: ['number', 'null'], description: 'Lowest ticket price in USD if written.' },
-            price_max: { type: ['number', 'null'] },
-            recurring: { type: 'boolean', description: 'True for weekly regulars such as "every Tuesday".' },
-            date_quote: {
-              type: 'string',
-              description: 'The exact caption text the date came from, copied character for character.',
-            },
+export interface AiExtractor {
+  /** Events in the post, or null if the model couldn't be used (the caller falls back to rules). */
+  extract(caption: string, postedAtIso: string, now: Date, extra?: AiExtractOptions): Promise<CaptionEvent[] | null>;
+  /** Picks a model and checks the service is reachable, before the run starts. */
+  prepare(): Promise<void>;
+  save(): void;
+  readonly label: string;
+  stats: AiStats;
+}
+
+const PROMPT_VERSION = 4;
+
+/** The answer every provider must return. */
+export const EVENTS_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    events: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Short event name, max 80 characters, in the caption’s words.' },
+          venue: { type: ['string', 'null'], description: 'Venue or place name as written, or null.' },
+          start_date: { type: 'string', description: 'YYYY-MM-DD' },
+          end_date: { type: ['string', 'null'], description: 'YYYY-MM-DD for multi-day runs, else null.' },
+          start_time: { type: ['string', 'null'], description: '24h HH:MM if a time is written, else null.' },
+          end_time: { type: ['string', 'null'], description: '24h HH:MM if written, else null.' },
+          is_free: { type: ['boolean', 'null'] },
+          price_min: { type: ['number', 'null'], description: 'Lowest ticket price in USD if written.' },
+          price_max: { type: ['number', 'null'] },
+          recurring: { type: 'boolean', description: 'True for weekly regulars such as "every Tuesday".' },
+          date_quote: {
+            type: 'string',
+            description: 'The exact text the date came from, copied character for character.',
           },
-          required: ['title', 'start_date', 'date_quote'],
+          seen_in: {
+            type: 'string',
+            enum: ['caption', 'image'],
+            description: 'Where date_quote appears: the caption, or only the attached image.',
+          },
         },
+        required: ['title', 'start_date', 'date_quote'],
       },
     },
-    required: ['events'],
   },
-} as const;
+  required: ['events'],
+};
 
 function systemPrompt(timeZone: string): string {
   return [
@@ -83,7 +110,8 @@ function systemPrompt(timeZone: string): string {
     'For weekly regulars ("every Tuesday", "Thursdays"), give the next date on or after the posted date and set recurring.',
     'For "this weekend", "tonight", "tomorrow", resolve against the posted date.',
     'Never invent a time, price or venue: use null when the caption does not say.',
-    'date_quote must be copied exactly from the caption.',
+    'date_quote must be copied exactly from where you read it.',
+    'If an image is attached it is the post itself, often a flyer: read dates, times, venues and prices from it too, and set seen_in to "image" when the date appears only in the image.',
   ].join(' ');
 }
 
@@ -105,6 +133,7 @@ export function validateAiEvents(
   caption: string,
   postedDate: string,
   todayDate: string,
+  options: { imageSent?: boolean } = {},
 ): { events: CaptionEvent[]; dropped: number } {
   const list = (input as { events?: unknown })?.events;
   if (!Array.isArray(list)) return { events: [], dropped: 0 };
@@ -115,7 +144,11 @@ export function validateAiEvents(
     const e = raw as Record<string, unknown>;
     const quote = typeof e.date_quote === 'string' ? squash(e.date_quote) : '';
     const title = typeof e.title === 'string' ? e.title.trim().slice(0, 100) : '';
-    if (!quote || !haystack.includes(quote) || !title || !realDate(e.start_date)) {
+    // A quote from the caption is checked word for word. One read off the image can't be
+    // checked here, so it's only accepted when an image was actually sent.
+    const fromImage = e.seen_in === 'image' && options.imageSent === true;
+    const quoteOk = quote.length > 0 && (haystack.includes(quote) || fromImage);
+    if (!quoteOk || !title || !realDate(e.start_date)) {
       dropped++;
       continue;
     }
@@ -140,7 +173,9 @@ export function validateAiEvents(
       date,
       allDay,
       text: caption,
-      evidence: [String(e.date_quote)],
+      evidence: [
+        fromImage && !haystack.includes(quote) ? `on the post image: ${String(e.date_quote)}` : String(e.date_quote),
+      ],
       ...(venue ? { venue } : {}),
       ...(end ? { endDate: end } : {}),
       ...(e.recurring === true ? { recurring: true } : {}),
@@ -164,101 +199,115 @@ function localDate(ms: number, timeZone: string): string {
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export function createAiExtractor(options: AiExtractorOptions): AiExtractor {
+  const { provider } = options;
   const fetchImpl = options.fetchImpl ?? fetch;
   const sleep = options.sleep ?? defaultSleep;
-  const model = options.model ?? DEFAULT_AI_MODEL;
   const timeZone = options.timeZone ?? 'America/Los_Angeles';
-  const maxRetries = options.maxRetries ?? 3;
   const cache: Record<string, unknown> =
     options.cacheFile && existsSync(options.cacheFile)
       ? (JSON.parse(readFileSync(options.cacheFile, 'utf8')) as Record<string, unknown>)
       : {};
-  const stats = { calls: 0, cached: 0, failures: 0, dropped: 0 };
+  const stats: AiStats = { calls: 0, cached: 0, failures: 0, dropped: 0, images: 0, quotaHit: false };
+  let lastCall = 0;
+  const persist = () => {
+    if (options.cacheFile) writeFileSync(options.cacheFile, JSON.stringify(cache, null, 1));
+  };
 
-  async function ask(caption: string, postedDate: string): Promise<unknown> {
+  /** Downloads an image as base64, or null if it can't be used. */
+  async function loadImage(url: string): Promise<AiImage | null> {
+    try {
+      const response = await fetchImpl(url);
+      if (!response.ok) return null;
+      const type = (response.headers.get('content-type') ?? '').split(';')[0]!.trim();
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(type)) return null;
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length === 0 || bytes.length > 4_500_000) return null;
+      return { media_type: type, data: bytes.toString('base64') };
+    } catch {
+      return null;
+    }
+  }
+
+  async function ask(caption: string, postedDate: string, image: AiImage | null): Promise<unknown> {
+    const wait = lastCall + provider.minIntervalMs - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastCall = Date.now();
     const weekday = new Date(`${postedDate}T12:00:00Z`).toLocaleDateString('en-US', {
       weekday: 'long',
       timeZone: 'UTC',
     });
-    const body = {
-      model,
-      max_tokens: 1500,
+    return provider.ask({
       system: systemPrompt(timeZone),
-      tools: [TOOL],
-      tool_choice: { type: 'tool', name: TOOL.name },
-      messages: [
-        {
-          role: 'user',
-          content: `Posted on ${weekday}, ${postedDate}.\n\nCaption:\n"""\n${caption.slice(0, 4000)}\n"""`,
-        },
-      ],
-    };
-    for (let attempt = 0; ; attempt++) {
-      let response: Response;
-      try {
-        response = await fetchImpl('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key': options.apiKey,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        });
-      } catch (error) {
-        if (attempt < maxRetries) {
-          await sleep(1000 * 2 ** attempt);
-          continue;
-        }
-        throw error;
-      }
-      if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
-        const retryAfter = Number(response.headers.get('retry-after'));
-        await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1000 * 2 ** attempt);
-        continue;
-      }
-      if (!response.ok) {
-        const text = (await response.text().catch(() => '')).slice(0, 200).split(options.apiKey).join('[redacted]');
-        throw new Error(`Claude API error ${response.status}: ${text}`);
-      }
-      const json = (await response.json()) as { content?: { type: string; name?: string; input?: unknown }[] };
-      const tool = json.content?.find((c) => c.type === 'tool_use' && c.name === TOOL.name);
-      if (!tool) throw new Error('Claude API answer had no tool call');
-      return tool.input;
-    }
+      schema: EVENTS_SCHEMA,
+      image,
+      text:
+        `Posted on ${weekday}, ${postedDate}.${image ? ' The image is the post.' : ''}\n\n` +
+        `Caption:\n"""\n${caption.slice(0, 4000) || '(no caption)'}\n"""\n\n` +
+        'Answer with JSON: {"events": [...]}, using an empty list when there are no events.',
+    });
   }
 
   return {
     stats,
-    async extract(caption, postedAtIso, now) {
-      if (!caption.trim()) return [];
+    get label() {
+      return `${provider.name} (${provider.model || 'auto'})`;
+    },
+    prepare: () => provider.prepare(),
+    async extract(caption, postedAtIso, now, extra = {}) {
+      if (!caption.trim() && !extra.imageUrl) return [];
       const postedMs = Date.parse(postedAtIso);
       const postedDate = localDate(Number.isFinite(postedMs) ? postedMs : now.getTime(), timeZone);
       const todayDate = localDate(now.getTime(), timeZone);
-      const key = createHash('sha256')
-        .update(`${PROMPT_VERSION}|${model}|${postedDate}|${caption}`)
-        .digest('hex')
-        .slice(0, 32);
-      let answer = cache[key];
-      if (answer === undefined) {
-        try {
-          stats.calls++;
-          answer = await ask(caption, postedDate);
-          cache[key] = answer;
-        } catch (error) {
-          stats.failures++;
-          console.warn(`  AI extraction failed, using rules for this post: ${(error as Error).message}`);
-          return null;
-        }
-      } else {
+      // Image links change on every scrape, so a key records only whether an image was sent.
+      const keyFor = (kind: 'img' | 'text') =>
+        createHash('sha256')
+          .update(`${PROMPT_VERSION}|${provider.name}|${provider.model}|${postedDate}|${kind}|${caption}`)
+          .digest('hex')
+          .slice(0, 32);
+      let imageSent = false;
+      let answer: unknown;
+      if (extra.imageUrl && cache[keyFor('img')] !== undefined) {
+        answer = cache[keyFor('img')];
+        imageSent = true;
         stats.cached++;
+      } else if (!extra.imageUrl && cache[keyFor('text')] !== undefined) {
+        answer = cache[keyFor('text')];
+        stats.cached++;
+      } else {
+        // Once the quota is used up, the rest of the run uses the rules (answers so far stay cached).
+        if (stats.quotaHit) return null;
+        // An expired or unusable image link falls back to a caption-only answer.
+        const image = extra.imageUrl ? await loadImage(extra.imageUrl) : null;
+        const key = keyFor(image ? 'img' : 'text');
+        if (!image && cache[key] !== undefined) {
+          answer = cache[key];
+          stats.cached++;
+        } else {
+          if (!image && !caption.trim()) return [];
+          try {
+            stats.calls++;
+            if (image) stats.images++;
+            answer = await ask(caption, postedDate, image);
+            cache[key] = answer;
+            // Save as we go, so a stopped run (or a used-up free quota) keeps what it paid for.
+            if (stats.calls % 10 === 0) persist();
+          } catch (error) {
+            stats.failures++;
+            if (error instanceof QuotaError) {
+              stats.quotaHit = true;
+              console.warn(`  ${provider.name} quota used up; the rest of this run uses the built-in rules.`);
+            } else {
+              console.warn(`  AI reading failed, using rules for this post: ${(error as Error).message}`);
+            }
+            return null;
+          }
+        }
+        imageSent = image !== null;
       }
-      const { events, dropped } = validateAiEvents(answer, caption, postedDate, todayDate);
+      const { events, dropped } = validateAiEvents(answer, caption, postedDate, todayDate, { imageSent });
       stats.dropped += dropped;
       return events;
     },
-    save() {
-      if (options.cacheFile) writeFileSync(options.cacheFile, JSON.stringify(cache, null, 1));
-    },
+    save: persist,
   };
 }

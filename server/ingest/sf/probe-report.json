@@ -1,0 +1,126 @@
+{
+  "probedAt": "2026-10-25T05:30:24.508Z",
+  "usedAi": false,
+  "results": [
+    {
+      "url": "https://www.instagram.com/brokeassstuart/",
+      "category": "community",
+      "note": "Broke-Ass Stuart: cheap SF events and nightlife",
+      "posts": 5,
+      "events": 0,
+      "newestPost": "2026-10-24T20:35:45.000Z",
+      "verdict": "no_events",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/sfstandard/",
+      "category": "community",
+      "note": "The San Francisco Standard: local news, weekend picks",
+      "posts": 5,
+      "events": 0,
+      "newestPost": "2026-10-24T19:31:05.000Z",
+      "verdict": "no_events",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/thebolditalic/",
+      "category": "community",
+      "note": "The Bold Italic: SF culture and events",
+      "posts": 1,
+      "events": 0,
+      "newestPost": "2026-10-09T22:52:49.000Z",
+      "verdict": "no_events",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/secretsanfrancisco/",
+      "category": "community",
+      "note": "Secret San Francisco: things-to-do roundups",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/sfstation/",
+      "category": "community",
+      "note": "SF Station: events calendar",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/fortmason/",
+      "category": "culture",
+      "note": "Fort Mason Center",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/yerbabuenagardens/",
+      "category": "outdoors",
+      "note": "Yerba Buena Gardens (free summer/fall events)",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/roxietheater/",
+      "category": "arts",
+      "note": "Roxie Theater: indie cinema",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/castrotheatre/",
+      "category": "arts",
+      "note": "Castro Theatre",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/gamhsf/",
+      "category": "music",
+      "note": "Great American Music Hall",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/cobbscomedy/",
+      "category": "games",
+      "note": "Cobb's Comedy Club",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/explore/tags/thingstodoinsf/",
+      "category": "other",
+      "note": "Hashtag feed: noisy, may include other cities",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    },
+    {
+      "url": "https://www.instagram.com/explore/tags/sfpopup/",
+      "category": "food",
+      "note": "Hashtag feed: pop-ups",
+      "posts": 0,
+      "events": 0,
+      "verdict": "no_posts",
+      "examples": []
+    }
+  ]
+}

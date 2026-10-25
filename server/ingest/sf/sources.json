@@ -2,7 +2,7 @@
   "city": "San Francisco",
   "timeZone": "America/Los_Angeles",
   "newerThan": "21 days",
-  "maxResultsPerRun": 150,
+  "maxResultsPerRun": 300,
   "sources": [
     {
       "url": "https://www.instagram.com/funcheap/",
@@ -38,6 +38,125 @@
       "category": "other",
       "confirmed": false,
       "note": "Hashtag feed: noisy, and posts may not be in SF. Location-tagged posts geocode best."
+    },
+    {
+      "url": "https://www.instagram.com/grayareaorg/",
+      "limit": 15,
+      "category": "arts",
+      "confirmed": true,
+      "note": "Gray Area: art and tech events in the Mission (probe: 19 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/theindependentsf/",
+      "limit": 15,
+      "category": "music",
+      "confirmed": true,
+      "note": "The Independent (probe: 18 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/dothebay/",
+      "limit": 15,
+      "category": "community",
+      "confirmed": true,
+      "note": "DoTheBay: Bay Area events calendar (probe: 13 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/ybca/",
+      "limit": 15,
+      "category": "arts",
+      "confirmed": true,
+      "note": "Yerba Buena Center for the Arts (probe: 10 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/deyoungmuseum/",
+      "limit": 15,
+      "category": "arts",
+      "confirmed": true,
+      "note": "de Young museum (probe: 6 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/sfrecpark/",
+      "limit": 15,
+      "category": "outdoors",
+      "confirmed": true,
+      "note": "SF Recreation & Parks (probe: 5 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/thechapelsf/",
+      "limit": 15,
+      "category": "music",
+      "confirmed": true,
+      "note": "The Chapel (Mission) (probe: 5 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/asianartmuseum/",
+      "limit": 15,
+      "category": "arts",
+      "confirmed": true,
+      "note": "Asian Art Museum (probe: 4 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/missionlocal/",
+      "limit": 15,
+      "category": "community",
+      "confirmed": true,
+      "note": "Mission Local: Mission District news and happenings (probe: 3 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/rickshawstop/",
+      "limit": 15,
+      "category": "music",
+      "confirmed": true,
+      "note": "Rickshaw Stop (probe: 3 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/sfjazz/",
+      "limit": 15,
+      "category": "music",
+      "confirmed": true,
+      "note": "SFJAZZ Center (probe: 3 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/sfpubliclibrary/",
+      "limit": 15,
+      "category": "learning",
+      "confirmed": true,
+      "note": "San Francisco Public Library (probe: 2 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/offthegridsf/",
+      "limit": 15,
+      "category": "food",
+      "confirmed": true,
+      "note": "Off the Grid: food truck markets (probe: 2 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/sfbotanicalgarden/",
+      "limit": 15,
+      "category": "outdoors",
+      "confirmed": true,
+      "note": "SF Botanical Garden (probe: 2 events in 4 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/noisepop/",
+      "limit": 15,
+      "category": "music",
+      "confirmed": true,
+      "note": "Noise Pop: shows and festival (probe: 1 events in 3 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/7x7bayarea/",
+      "limit": 8,
+      "category": "community",
+      "confirmed": true,
+      "note": "7x7: Bay Area food and events (probe: 1 events in 5 posts)"
+    },
+    {
+      "url": "https://www.instagram.com/presidiosf/",
+      "limit": 8,
+      "category": "outdoors",
+      "confirmed": true,
+      "note": "The Presidio (probe: 1 events in 5 posts)"
     }
   ]
 }

@@ -4,7 +4,15 @@ import { describe, test } from 'node:test';
 import { normalizeActivity } from '../../src/core/normalize.ts';
 import { buildPackCatalog, SF_PACK } from '../../src/data/packs/index.ts';
 import { nextOccurrence, SF_RECURRING_EVENTS } from '../../src/data/packs/sfRecurring.ts';
-import { createAiExtractor, validateAiEvents } from '../../server/ingest/aiExtract.ts';
+import { createAiExtractor, EVENTS_SCHEMA, validateAiEvents } from '../../server/ingest/aiExtract.ts';
+import {
+  createAnthropicProvider,
+  createGeminiProvider,
+  createOllamaProvider,
+  pickGeminiModel,
+  providerFromEnv,
+  toGeminiSchema,
+} from '../../server/ingest/aiProviders.ts';
 import { extractEventsFromCaption } from '../../server/ingest/extractEvent.ts';
 import { googleOpeningHours, parseGoogleDayHours, placesToHours } from '../../server/ingest/placeHours.ts';
 import { postsToRecords, type SfSourcesConfig } from '../../server/ingest/sfPipeline.ts';
@@ -140,7 +148,7 @@ describe('pipeline with several events per post', () => {
       [
         ['Night Market', 'R1:1', false],
         ['Swap meet', 'R1:2', false],
-        ['Our new show is on view through Jan 4', 'X1', true],
+        ['Our new show is on view', 'X1', true],
       ],
     );
     assert.equal(new Set(activities.map((a) => a.id)).size, 3);
@@ -161,7 +169,7 @@ describe('pipeline with several events per post', () => {
     assert.equal(report.fromAi, 1);
     assert.deepEqual(
       records.map((r) => r.title),
-      ['From Claude', 'Pottery class Nov 4 at 6pm'],
+      ['From Claude', 'Pottery class'],
     );
   });
 });
@@ -202,13 +210,16 @@ describe('Claude caption reader', () => {
     const calls: { headers: Record<string, string>; body: { tool_choice: unknown } }[] = [];
     const answer = { events: [{ title: 'Night market', start_date: '2026-11-01', date_quote: 'Nov 1' }] };
     const ai = createAiExtractor({
-      apiKey: 'sk-ant-test-key-123',
-      fetchImpl: (async (_url: string, init: RequestInit) => {
-        calls.push({ headers: init.headers as Record<string, string>, body: JSON.parse(String(init.body)) });
-        return new Response(JSON.stringify({ content: [{ type: 'tool_use', name: 'record_events', input: answer }] }), {
-          status: 200,
-        });
-      }) as typeof fetch,
+      provider: createAnthropicProvider({
+        apiKey: 'sk-ant-test-key-123',
+        fetchImpl: (async (_url: string, init: RequestInit) => {
+          calls.push({ headers: init.headers as Record<string, string>, body: JSON.parse(String(init.body)) });
+          return new Response(
+            JSON.stringify({ content: [{ type: 'tool_use', name: 'record_events', input: answer }] }),
+            { status: 200 },
+          );
+        }) as typeof fetch,
+      }),
     });
     const first = await ai.extract(caption, POSTED, NOW);
     const second = await ai.extract(caption, POSTED, NOW);
@@ -220,9 +231,12 @@ describe('Claude caption reader', () => {
     assert.deepEqual(first, second);
 
     const failing = createAiExtractor({
-      apiKey: 'sk-ant-test-key-123',
-      maxRetries: 0,
-      fetchImpl: (async () => new Response('bad key sk-ant-test-key-123', { status: 401 })) as unknown as typeof fetch,
+      provider: createAnthropicProvider({
+        apiKey: 'sk-ant-test-key-123',
+        maxRetries: 0,
+        fetchImpl: (async () =>
+          new Response('bad key sk-ant-test-key-123', { status: 401 })) as unknown as typeof fetch,
+      }),
     });
     const warnings: string[] = [];
     const original = console.warn;
@@ -294,5 +308,283 @@ describe('SF pack hours and weekly events', () => {
     assert.match(sfmoma?.openingHours ?? '', /^Mo-Tu 10:00-17:00/);
     assert.match(sfmoma?.openingHoursSource ?? '', /checked Oct 25, 2026/);
     assert.ok(catalog.some((a) => a.id.startsWith('sf-ferry-plaza-farmers-market-2026-10-27')));
+  });
+});
+
+describe('Apify long-running actor', async () => {
+  const { runApifyActorAsync } = await import('../../server/ingest/instagram.ts');
+  test('starts a run, waits for it and reads the dataset', async () => {
+    const urls: string[] = [];
+    const replies = [
+      { data: { id: 'run1', status: 'RUNNING', defaultDatasetId: 'ds1' } },
+      { data: { id: 'run1', status: 'RUNNING', defaultDatasetId: 'ds1' } },
+      { data: { id: 'run1', status: 'SUCCEEDED', defaultDatasetId: 'ds1' } },
+      [{ title: 'SFMOMA' }],
+    ];
+    const items = await runApifyActorAsync({
+      token: 'apify_api_secret123',
+      actorId: 'compass~crawler-google-places',
+      input: { searchStringsArray: ['SFMOMA'] },
+      fetchImpl: (async (url: string) => {
+        urls.push(url);
+        return new Response(JSON.stringify(replies.shift()), { status: 200 });
+      }) as typeof fetch,
+    });
+    assert.deepEqual(items, [{ title: 'SFMOMA' }]);
+    assert.match(urls[0]!, /\/acts\/compass~crawler-google-places\/runs$/);
+    assert.match(urls[1]!, /\/actor-runs\/run1\?waitForFinish=60$/);
+    assert.match(urls.at(-1)!, /\/datasets\/ds1\/items/);
+  });
+
+  test('reports failed runs and bad tokens without leaking the token', async () => {
+    await assert.rejects(
+      runApifyActorAsync({
+        token: 'apify_api_secret123',
+        actorId: 'x',
+        input: {},
+        fetchImpl: (async () =>
+          new Response('token apify_api_secret123 invalid', { status: 401 })) as unknown as typeof fetch,
+      }),
+      (e: Error) => /Check APIFY_API_TOKEN/.test(e.message) && !e.message.includes('apify_api_secret123'),
+    );
+    const replies = [{ data: { id: 'r', status: 'RUNNING' } }, { data: { id: 'r', status: 'FAILED' } }];
+    await assert.rejects(
+      runApifyActorAsync({
+        token: 't0ken123',
+        actorId: 'x',
+        input: {},
+        fetchImpl: (async () =>
+          new Response(JSON.stringify(replies.shift()), { status: 200 })) as unknown as typeof fetch,
+      }),
+      /status FAILED/,
+    );
+  });
+});
+
+describe('finding better accounts', async () => {
+  const { scoreCandidates, adoptSources, verdictFor } = await import('../../server/ingest/probe.ts');
+  const probeConfig: SfSourcesConfig = { ...CONFIG, sources: [] };
+  const from = (owner: string, shortCode: string, caption: string) => ({
+    ...post(shortCode, caption),
+    ownerUsername: owner,
+    inputUrl: `https://www.instagram.com/${owner}`,
+  });
+
+  test('ranks accounts by the events their posts contain', async () => {
+    const results = await scoreCandidates(
+      [
+        from('venue', 'V1', 'Sat 11/7 · Band night @ The Venue · 8pm $20'),
+        from('venue', 'V2', 'Fri 11/6 · DJ night @ The Venue · 9pm'),
+        from('brand', 'B1', 'New merch drop! Link in bio'),
+        { error: 'not_found', url: 'https://www.instagram.com/typo/' },
+      ],
+      [
+        { url: 'https://www.instagram.com/brand/', category: 'other' },
+        { url: 'https://www.instagram.com/typo/', category: 'other' },
+        { url: 'https://www.instagram.com/venue/', category: 'music' },
+      ],
+      probeConfig,
+      { now: NOW },
+    );
+    assert.deepEqual(
+      results.map((r) => [r.url.split('/')[3], r.verdict, r.events, r.posts]),
+      [
+        ['venue', 'good', 2, 2],
+        ['brand', 'no_events', 0, 1],
+        ['typo', 'no_posts', 0, 0],
+      ],
+    );
+    assert.deepEqual(results[0]!.examples, ['Band night', 'DJ night']);
+    assert.equal(verdictFor(10, 1), 'some');
+
+    const { config, added } = adoptSources(CONFIG, results);
+    assert.deepEqual(added, ['https://www.instagram.com/venue/']);
+    assert.equal(config.sources.at(-1)?.limit, 15);
+    assert.equal(adoptSources(config, results).added.length, 0, 'never added twice');
+  });
+
+  test('flyer images go to the model, and an image-only date is accepted only when an image was sent', async () => {
+    const answer = {
+      events: [
+        { title: 'Flyer show', start_date: '2026-11-07', start_time: '20:00', date_quote: 'NOV 7', seen_in: 'image' },
+      ],
+    };
+    const bodies: { contents: { parts: Record<string, unknown>[] }[] }[] = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      if (url.startsWith('https://cdn.example/ok.jpg')) {
+        return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'content-type': 'image/jpeg' } });
+      }
+      if (url.startsWith('https://cdn.example/')) return new Response('gone', { status: 403 });
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(answer) }] } }] }),
+        {
+          status: 200,
+        },
+      );
+    }) as typeof fetch;
+    const ai = createAiExtractor({
+      provider: createGeminiProvider({ apiKey: 'AIza-test', model: 'gemini-test-flash-lite', fetchImpl }),
+      fetchImpl,
+      sleep: async () => {},
+    });
+    const withImage = await ai.extract('Link in bio!', POSTED, NOW, { imageUrl: 'https://cdn.example/ok.jpg' });
+    assert.equal(withImage?.[0]?.title, 'Flyer show');
+    assert.equal(withImage?.[0]?.startWall, '2026-11-07 20:00');
+    assert.match(withImage?.[0]?.evidence[0] ?? '', /^on the post image/);
+    assert.deepEqual(bodies[0]!.contents[0]!.parts[0], { inline_data: { mime_type: 'image/jpeg', data: 'AQID' } });
+    assert.equal(ai.stats.images, 1);
+
+    // Expired link: caption only, so the unverifiable image quote is dropped.
+    const expired = await ai.extract('Another caption', POSTED, NOW, { imageUrl: 'https://cdn.example/old.jpg' });
+    assert.deepEqual(expired, []);
+    assert.ok('text' in bodies[1]!.contents[0]!.parts[0]!);
+  });
+
+  test('the pipeline passes the post image only with readImages', async () => {
+    const seen: (string | undefined)[] = [];
+    const aiExtract = async (_c: string, _p: string, _n: Date, extra?: { imageUrl?: string }) => {
+      seen.push(extra?.imageUrl);
+      return [];
+    };
+    const item = { ...post('I1', 'flyer'), displayUrl: 'https://cdn.example/a.jpg' };
+    await postsToRecords([item], CONFIG, { now: NOW, aiExtract });
+    await postsToRecords([item], CONFIG, { now: NOW, aiExtract, readImages: true });
+    assert.deepEqual(seen, [undefined, 'https://cdn.example/a.jpg']);
+  });
+});
+
+describe('free AI services', () => {
+  const geminiAnswer = (events: unknown[]) =>
+    new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ events }) }] } }] }), {
+      status: 200,
+    });
+
+  test('Gemini gets a schema it understands, and picks a free Flash-Lite model by itself', async () => {
+    const schema = toGeminiSchema(EVENTS_SCHEMA) as {
+      type: string;
+      properties: { events: { items: { properties: Record<string, { type: string; nullable?: boolean }> } } };
+    };
+    assert.equal(schema.type, 'OBJECT');
+    assert.deepEqual(schema.properties.events.items.properties.venue, {
+      type: 'STRING',
+      nullable: true,
+      description: 'Venue or place name as written, or null.',
+    });
+    assert.equal(
+      pickGeminiModel([
+        { name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] },
+        { name: 'models/gemini-3.5-flash-lite', supportedGenerationMethods: ['generateContent'] },
+        { name: 'models/gemini-3.6-flash-lite-preview', supportedGenerationMethods: ['generateContent'] },
+        { name: 'models/gemini-3.1-flash-lite', supportedGenerationMethods: ['generateContent'] },
+        { name: 'models/gemini-3.8-flash-tts', supportedGenerationMethods: ['generateContent'] },
+        { name: 'models/text-embedding', supportedGenerationMethods: ['embedContent'] },
+      ]),
+      'gemini-3.5-flash-lite',
+    );
+    const provider = createGeminiProvider({
+      apiKey: 'AIza-test',
+      fetchImpl: (async () =>
+        new Response(
+          JSON.stringify({
+            models: [{ name: 'models/gemini-9.0-flash', supportedGenerationMethods: ['generateContent'] }],
+          }),
+          { status: 200 },
+        )) as unknown as typeof fetch,
+    });
+    await provider.prepare();
+    assert.equal(provider.model, 'gemini-9.0-flash');
+  });
+
+  test('when the free daily quota runs out, the run carries on with the rules and keeps what it has', async () => {
+    let calls = 0;
+    const ai = createAiExtractor({
+      sleep: async () => {},
+      provider: createGeminiProvider({
+        apiKey: 'AIza-test',
+        model: 'gemini-test',
+        sleep: async () => {},
+        fetchImpl: (async () => {
+          calls++;
+          if (calls === 1) return geminiAnswer([{ title: 'Show', start_date: '2026-11-07', date_quote: 'Nov 7' }]);
+          return new Response(
+            '{"error":{"status":"RESOURCE_EXHAUSTED","message":"GenerateRequestsPerDayPerProject"}}',
+            {
+              status: 429,
+            },
+          );
+        }) as unknown as typeof fetch,
+      }),
+    });
+    const original = console.warn;
+    console.warn = () => {};
+    try {
+      assert.equal((await ai.extract('Show Nov 7', POSTED, NOW))?.length, 1);
+      assert.equal(await ai.extract('Other Nov 8', POSTED, NOW), null);
+      assert.equal(await ai.extract('Third Nov 9', POSTED, NOW), null);
+    } finally {
+      console.warn = original;
+    }
+    assert.equal(ai.stats.quotaHit, true);
+    assert.equal(calls, 2, 'no more requests once the daily quota is gone');
+    assert.equal((await ai.extract('Show Nov 7', POSTED, NOW))?.length, 1, 'cached answers still work');
+  });
+
+  test('a per-minute limit waits as told and retries', async () => {
+    const waits: number[] = [];
+    let calls = 0;
+    const provider = createGeminiProvider({
+      apiKey: 'AIza-test',
+      model: 'gemini-test',
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+      fetchImpl: (async () =>
+        ++calls === 1
+          ? new Response('{"error":{"details":[{"retryDelay": "7s"}]}}', { status: 429 })
+          : geminiAnswer([])) as unknown as typeof fetch,
+    });
+    assert.deepEqual(await provider.ask({ system: 's', text: 't', image: null, schema: EVENTS_SCHEMA }), {
+      events: [],
+    });
+    assert.deepEqual(waits, [7500]);
+  });
+
+  test('Ollama runs locally with the JSON schema and the image', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const provider = createOllamaProvider({
+      fetchImpl: (async (url: string, init?: RequestInit) => {
+        if (url.endsWith('/api/tags')) return new Response(JSON.stringify({ models: [{ name: 'gemma3:4b' }] }));
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ message: { content: '{"events": []}' } }));
+      }) as typeof fetch,
+    });
+    await provider.prepare();
+    await provider.ask({
+      system: 's',
+      text: 't',
+      image: { media_type: 'image/png', data: 'AAA' },
+      schema: EVENTS_SCHEMA,
+    });
+    assert.equal(bodies[0]!.model, 'gemma3:4b');
+    assert.deepEqual(bodies[0]!.format, EVENTS_SCHEMA);
+    assert.deepEqual((bodies[0]!.messages as { images?: string[] }[])[1]!.images, ['AAA']);
+
+    const missing = createOllamaProvider({
+      model: 'qwen2.5vl:7b',
+      fetchImpl: (async () => new Response(JSON.stringify({ models: [] }))) as unknown as typeof fetch,
+    });
+    await assert.rejects(missing.prepare(), /ollama pull qwen2\.5vl:7b/);
+  });
+
+  test('picks the free option by default and explains what to set', () => {
+    assert.equal(providerFromEnv({ geminiApiKey: 'k', anthropicApiKey: 'a' }).name, 'gemini');
+    assert.equal(providerFromEnv({ ollamaModel: 'gemma3:4b' }).name, 'ollama');
+    assert.equal(providerFromEnv({ anthropicApiKey: 'a' }).name, 'anthropic');
+    assert.equal(
+      providerFromEnv({ aiProvider: 'anthropic', anthropicApiKey: 'a', geminiApiKey: 'k' }).name,
+      'anthropic',
+    );
+    assert.throws(() => providerFromEnv({}), /GEMINI_API_KEY/);
   });
 });

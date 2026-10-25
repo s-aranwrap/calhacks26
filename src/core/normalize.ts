@@ -353,11 +353,12 @@ export function normalizeActivity(raw: unknown, ctx: NormalizeContext): Normaliz
         certainty: readCertainty(r.duration_certainty, isVerified, 'duration', warnings),
       };
     }
-  } else if (startAt && endAt) {
+  } else if (startAt && endAt && !allDayInput) {
     // Derived from verified-or-not source times, so it's as certain as the times themselves.
+    // (All-day events have no meaningful window: "Nov 8" doesn't mean a 24-hour commitment.)
     const minutes = Math.round((Date.parse(endAt) - Date.parse(startAt)) / 60_000);
     if (minutes > 0 && minutes <= MAX_DURATION_MINUTES) {
-      duration = { minMinutes: minutes, certainty: isVerified ? 'verified' : 'estimated' };
+      duration = { minMinutes: minutes, certainty: isVerified ? 'verified' : 'estimated', basis: 'event_window' };
     }
   }
 

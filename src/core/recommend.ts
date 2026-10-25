@@ -45,6 +45,13 @@ export interface DiscoveryRequest {
   /** Varies "Surprise me" and breaks ties. Fixed in tests. */
   seed?: number;
   count?: number;
+  /**
+   * Dated events are what makes Huddle worth opening (a place will still be
+   * there next week). When at least this many events are eligible, at least
+   * this many of the picks are events, and places only fill what's left.
+   * Default 3 (all three, when there are enough); 0 turns it off.
+   */
+  minEvents?: number;
 }
 
 export type RecommendationPreferences = Pick<UserPreferences, 'interests' | 'nudge' | 'includeUnverified' | 'currency'>;
@@ -192,6 +199,7 @@ export function exclusionReason(
   if (
     request.availableMinutes !== null &&
     activity.duration &&
+    activity.duration.basis !== 'event_window' &&
     activity.duration.minMinutes > request.availableMinutes
   ) {
     return 'time';
@@ -258,7 +266,7 @@ function scoreCandidate(
     add(-0.3);
   }
 
-  // Time
+  // Time. An event's start and end already say how long it is, so a missing duration isn't held against it.
   if (request.availableMinutes !== null) {
     if (activity.duration) {
       const hours = request.availableMinutes / 60;
@@ -266,16 +274,23 @@ function scoreCandidate(
         0.4,
         `Fits in your ${hours >= 1 ? `${Number.isInteger(hours) ? hours : hours.toFixed(1)} hour${hours === 1 ? '' : 's'}` : `${request.availableMinutes} minutes`}`,
       );
-    } else add(-0.3);
+    } else if (activity.kind !== 'event') add(-0.3);
   }
 
-  // Timing for events
+  // Timing for events: a one-off happening soon beats a place that's always there.
   const start = parseTime(activity.startAt);
   if (activity.kind === 'event' && start !== undefined) {
     const hoursUntil = (start - request.now.getTime()) / HOUR_MS;
-    if (hoursUntil <= 0) add(0.8, 'Happening right now');
-    else if (hoursUntil <= 24) add(0.8, 'Happening soon');
-    else if (hoursUntil <= 72) add(0.4, 'Coming up in the next few days');
+    const end = parseTime(activity.endAt);
+    const longRun = activity.allDay && end !== undefined && end - start > 36 * HOUR_MS;
+    if (longRun) add(1.2, 'On for a limited time', 1.2);
+    else if (hoursUntil <= 0) add(2.5, 'Happening right now', 2);
+    else if (hoursUntil <= 24) add(2.2, 'Happening soon', 2);
+    else if (hoursUntil <= 72) add(1.6, 'Coming up in the next few days', 1.5);
+    else if (hoursUntil <= 7 * 24) add(1.1, 'This week only', 1.2);
+    else add(0.6, 'On a set date, so it won’t wait for you', 0.8);
+    // Freshly found one-offs beat the pack's weekly regulars, which come round every week anyway.
+    if (activity.source.platform === 'instagram' || activity.source.platform === 'supabase') add(1);
     const part = dayPart(hourInZone(start, undefined));
     if ((profile.avoidDayParts[part] ?? 0) >= 0.5) add(-1);
   }
@@ -332,7 +347,12 @@ function diversityPenalty(candidate: Candidate, picks: readonly Candidate[]): nu
   return penalty;
 }
 
-function selectDiverse(pool: Candidate[], count: number, nudge: RecommendationPreferences['nudge']): Candidate[] {
+function selectDiverse(
+  pool: Candidate[],
+  count: number,
+  nudge: RecommendationPreferences['nudge'],
+  minEvents: number,
+): Candidate[] {
   const picks: Candidate[] = [];
   const remaining = [...pool];
   const maxStretch = MAX_STRETCH[nudge];
@@ -387,6 +407,20 @@ function selectDiverse(pool: Candidate[], count: number, nudge: RecommendationPr
       });
       if (replaceAt !== -1) picks[replaceAt] = easy;
     }
+  }
+
+  // Make room for events: swap the weakest places for the best eligible events, one venue each.
+  const isEvent = (c: Candidate) => c.activity.kind === 'event';
+  const wanted = Math.min(minEvents, count);
+  while (picks.filter(isEvent).length < wanted) {
+    const venues = new Set(picks.map((p) => p.activity.venue?.name).filter(Boolean));
+    const event = pool
+      .filter((c) => isEvent(c) && !picks.includes(c) && !(c.activity.venue?.name && venues.has(c.activity.venue.name)))
+      .sort((a, b) => b.score - diversityPenalty(b, picks) - (a.score - diversityPenalty(a, picks)))[0];
+    const places = picks.filter((p) => !isEvent(p));
+    if (!event || places.length === 0) break;
+    const weakest = places.sort((a, b) => a.score - b.score)[0]!;
+    picks[picks.indexOf(weakest)] = event;
   }
   return picks;
 }
@@ -454,7 +488,7 @@ export function recommend(
   }
 
   pool.sort((a, b) => b.score - a.score || a.activity.id.localeCompare(b.activity.id));
-  const picks = selectDiverse(pool, count, prefs.nudge);
+  const picks = selectDiverse(pool, count, prefs.nudge, request.minEvents ?? 3);
 
   // Present comfortable matches first and the "something different" slot last.
   // Only label a "something different" slot when there's contrast with the others.
@@ -463,10 +497,17 @@ export function recommend(
     prefs.nudge !== 'gentle' && picks.length === count && novelPicks.length >= 1 && novelPicks.length < picks.length
       ? novelPicks.sort((a, b) => b.score - a.score)[0]!.activity.id
       : undefined;
+  // Freshly found events lead, then other events (weekly regulars), then places; the novelty slot, if any, goes last.
+  const rank = (c: Candidate) =>
+    c.activity.kind !== 'event'
+      ? 0
+      : c.activity.source.platform === 'instagram' || c.activity.source.platform === 'supabase'
+        ? 2
+        : 1;
   const ordered = [...picks].sort((a, b) => {
     if (a.activity.id === novelSlotId) return 1;
     if (b.activity.id === novelSlotId) return -1;
-    return b.score - a.score;
+    return rank(b) - rank(a) || b.score - a.score;
   });
 
   const recommendations: Recommendation[] = ordered.map((c) => ({

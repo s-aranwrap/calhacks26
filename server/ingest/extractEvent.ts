@@ -483,28 +483,33 @@ function splitTitleVenue(text: string): { title: string; venue?: string } {
 
 /** Strips dates, times, prices, emoji, hashtags and separators from a line to leave a title. */
 function cleanTitle(text: string): string {
-  return text
-    .replace(/https?:\/\/\S+/g, ' ')
-    .replace(/#[\p{L}\p{N}_]+/gu, ' ')
-    .replace(PICTOGRAPHS, ' ')
-    .replace(
-      new RegExp(`\\b(?:(?:this|next|every)\\s+)?(?:${FULL_WEEKDAYS})s?\\b|\\b(?:${SHORT_WEEKDAYS})\\b\\.?`, 'gi'),
-      ' ',
-    )
-    .replace(new RegExp(`\\b(?:${MONTH_NAMES})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?\\b`, 'gi'), ' ')
-    .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, ' ')
-    .replace(
-      /\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?\s*(?:-|–|—|to)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)/gi,
-      ' ',
-    )
-    .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)/gi, ' ')
-    .replace(/\$\d+(?:\.\d{2})?(?:\s*(?:-|–|to)\s*\$?\d+)?/g, ' ')
-    .replace(/\b(?:tonight|today|tomorrow|this weekend|through|thru|until|free|FREE)\b/g, ' ')
-    .replace(/^\s*(?:\d{1,2}[.)]\s+|[-*•▪◦]\s*)/u, ' ')
-    .replace(/[|•·]+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/^[\s:,.;–—-]+|[\s:,.;–—-]+$/gu, '')
-    .trim();
+  return (
+    text
+      .replace(/https?:\/\/\S+/g, ' ')
+      .replace(/#[\p{L}\p{N}_]+/gu, ' ')
+      .replace(PICTOGRAPHS, ' ')
+      .replace(
+        new RegExp(`\\b(?:(?:this|next|every)\\s+)?(?:${FULL_WEEKDAYS})s?\\b|\\b(?:${SHORT_WEEKDAYS})\\b\\.?`, 'gi'),
+        ' ',
+      )
+      .replace(new RegExp(`\\b(?:${MONTH_NAMES})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?\\b`, 'gi'), ' ')
+      .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, ' ')
+      .replace(
+        /\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?\s*(?:-|–|—|to)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)/gi,
+        ' ',
+      )
+      .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)/gi, ' ')
+      .replace(/\$\d+(?:\.\d{2})?(?:\s*(?:-|–|to)\s*\$?\d+)?/g, ' ')
+      .replace(/\b(?:tonight|today|tomorrow|this weekend|through|thru|until|free|FREE)\b/g, ' ')
+      .replace(/^\s*(?:\d{1,2}[.)]\s+|[-*•▪◦]\s*)/u, ' ')
+      .replace(/[|•·]+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^[\s:,.;–—-]+|[\s:,.;–—-]+$/gu, '')
+      // Words left dangling once the date or time after them is gone: "Pottery class at".
+      .replace(/(?:\s+(?:at|on|from|starting|@|this|next|&|and|,))+$/i, '')
+      .replace(/[\s:,.;–—-]+$/u, '')
+      .trim()
+  );
 }
 
 /** "25 things to do this week", "10 events this weekend": a list without details per event. */
@@ -607,7 +612,8 @@ export function extractEventsFromCaption(
 
   if (anchors.length < 2) {
     const result = eventsForBlock(caption, datesIn(caption, posted), today, {
-      withTitle: false,
+      // The first line minus its date, time and price: "Sat 11/7 · Band night · 8pm" → "Band night".
+      withTitle: true,
       // "Open studios Nov 8 & 9" is one event on two days; "25 things to do Nov 3, Nov 4, Nov 5" is a roundup with no details.
       maxDates: ROUNDUP_HEADLINE.test(caption) ? 0 : 2,
     });

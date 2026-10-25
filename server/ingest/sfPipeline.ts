@@ -46,7 +46,7 @@ export function maxResults(config: SfSourcesConfig): number {
   return config.sources.reduce((sum, s) => sum + s.limit, 0);
 }
 
-function sourceFor(item: Record<string, unknown>, sources: SfSource[]): SfSource | undefined {
+export function sourceFor(item: Record<string, unknown>, sources: SfSource[]): SfSource | undefined {
   const input = typeof item.inputUrl === 'string' ? item.inputUrl.replace(/\/+$/, '').toLowerCase() : '';
   const owner = typeof item.ownerUsername === 'string' ? item.ownerUsername.toLowerCase() : '';
   return sources.find((s) => {
@@ -59,7 +59,21 @@ export interface PipelineOptions {
   now: Date;
   geocode?: (venue: string) => Promise<GeoHit>;
   /** Optional Claude reader; returns null to fall back to the rules for a post. */
-  aiExtract?: (caption: string, postedAtIso: string, now: Date) => Promise<CaptionEvent[] | null>;
+  aiExtract?: (
+    caption: string,
+    postedAtIso: string,
+    now: Date,
+    extra?: { imageUrl?: string },
+  ) => Promise<CaptionEvent[] | null>;
+  /** Also send each post's image to the AI reader (flyers often carry the date). */
+  readImages?: boolean;
+}
+
+/** The post's main image URL, if Apify returned one. */
+export function postImageUrl(raw: Record<string, unknown>): string | undefined {
+  const first = Array.isArray(raw.images) ? raw.images.find((i) => typeof i === 'string') : undefined;
+  const url = typeof raw.displayUrl === 'string' ? raw.displayUrl : (first as string | undefined);
+  return url && /^https:\/\//.test(url) ? url : undefined;
 }
 
 export async function postsToRecords(
@@ -99,7 +113,9 @@ export async function postsToRecords(
     const caption = typeof raw.caption === 'string' ? raw.caption : '';
     const postedAt = typeof raw.timestamp === 'string' ? raw.timestamp : options.now.toISOString();
     let events: CaptionEvent[] | null = options.aiExtract
-      ? await options.aiExtract(caption, postedAt, options.now)
+      ? await options.aiExtract(caption, postedAt, options.now, {
+          ...(options.readImages && postImageUrl(raw) ? { imageUrl: postImageUrl(raw)! } : {}),
+        })
       : null;
     const usedAi = events !== null;
     let mode: 'single' | 'multi' = 'single';

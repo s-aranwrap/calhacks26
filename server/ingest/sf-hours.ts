@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { SF_EVERGREEN_RECORDS } from '../../src/data/packs/sfEvergreen.ts';
 import { loadServerEnv, parseArgs, redact } from './env.ts';
-import { runApifyActor } from './instagram.ts';
+import { runApifyActorAsync } from './instagram.ts';
 import { placesToHours, renderHoursModule, type PlaceQuery } from './placeHours.ts';
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -31,7 +31,7 @@ const SKIP = new Set([
   'sf-chinatown-walk',
 ]);
 
-export function placeQueries(): PlaceQuery[] {
+function placeQueries(): PlaceQuery[] {
   return SF_EVERGREEN_RECORDS.flatMap((r) => {
     const id = String(r.id);
     if (SKIP.has(id) || typeof r.latitude !== 'number' || typeof r.longitude !== 'number') return [];
@@ -55,6 +55,7 @@ async function main() {
 
   const fromRaw = flags['from-raw']?.[0];
   if (fromRaw) {
+    mkdirSync(RAW_DIR, { recursive: true });
     const latest = readdirSync(RAW_DIR)
       .filter((f) => f.endsWith('.json'))
       .sort()
@@ -71,11 +72,11 @@ async function main() {
     );
     if (flags['dry-run']) return;
     if (!env.apifyToken) throw new Error('Set APIFY_API_TOKEN in server/.env (see server/.env.example).');
-    console.log(`Running ${env.apifyPlacesActorId}… (this can take a minute or two)`);
-    items = await runApifyActor({
+    console.log(`Running ${env.apifyPlacesActorId}… (usually 2–6 minutes)`);
+    items = await runApifyActorAsync({
       token: env.apifyToken,
       actorId: env.apifyPlacesActorId,
-      timeoutSecs: 280,
+      onProgress: (status, secs) => console.log(`  ${status.toLowerCase()}… ${secs}s`),
       input: {
         searchStringsArray: queries.map((q) => q.query),
         locationQuery: 'San Francisco, CA, USA',
@@ -105,10 +106,10 @@ async function main() {
   console.log('Restart the app with `npx expo start -c` to see them.');
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main().catch((error: unknown) => {
-    const env = loadServerEnv();
-    console.error(redact(`Error: ${(error as Error).message}`, env.apifyToken));
-    process.exitCode = 1;
-  });
-}
+// No "am I the entry file?" check here: comparing paths fails silently when the
+// project sits behind a symlink or on Windows, and then nothing runs at all.
+main().catch((error: unknown) => {
+  const env = loadServerEnv();
+  console.error(redact(`Error: ${(error as Error).message}`, env.apifyToken));
+  process.exitCode = 1;
+});

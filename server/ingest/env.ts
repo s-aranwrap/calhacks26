@@ -15,7 +15,12 @@ export interface ServerEnv {
   supabaseSecretKey?: string;
   apifyToken?: string;
   apifyActorId: string;
-  /** Optional: Claude API key for `--ai` caption reading. */
+  /** Optional AI service for `--ai` / `--images` (see aiProviders.ts). */
+  aiProvider?: string;
+  geminiApiKey?: string;
+  geminiModel?: string;
+  ollamaUrl?: string;
+  ollamaModel?: string;
   anthropicApiKey?: string;
   anthropicModel?: string;
   /** Apify actor used by `npm run hours:sf`. */
@@ -37,6 +42,11 @@ export function loadServerEnv(): ServerEnv {
     ...(secret ? { supabaseSecretKey: secret } : {}),
     ...(env.APIFY_API_TOKEN ? { apifyToken: env.APIFY_API_TOKEN } : {}),
     apifyActorId: env.APIFY_INSTAGRAM_ACTOR_ID || 'apify~instagram-scraper',
+    ...(env.AI_PROVIDER ? { aiProvider: env.AI_PROVIDER } : {}),
+    ...(env.GEMINI_API_KEY ? { geminiApiKey: env.GEMINI_API_KEY } : {}),
+    ...(env.GEMINI_MODEL ? { geminiModel: env.GEMINI_MODEL } : {}),
+    ...(env.OLLAMA_URL ? { ollamaUrl: env.OLLAMA_URL } : {}),
+    ...(env.OLLAMA_MODEL ? { ollamaModel: env.OLLAMA_MODEL } : {}),
     ...(env.ANTHROPIC_API_KEY ? { anthropicApiKey: env.ANTHROPIC_API_KEY } : {}),
     ...(env.ANTHROPIC_MODEL ? { anthropicModel: env.ANTHROPIC_MODEL } : {}),
     apifyPlacesActorId: env.APIFY_PLACES_ACTOR_ID || 'compass~crawler-google-places',
