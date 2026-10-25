@@ -1,0 +1,43 @@
+{
+  "city": "San Francisco",
+  "timeZone": "America/Los_Angeles",
+  "newerThan": "21 days",
+  "maxResultsPerRun": 150,
+  "sources": [
+    {
+      "url": "https://www.instagram.com/funcheap/",
+      "limit": 30,
+      "category": "community",
+      "confirmed": true,
+      "note": "Funcheap: SF Bay Area guide to free and cheap events"
+    },
+    {
+      "url": "https://www.instagram.com/exploratorium/",
+      "limit": 12,
+      "category": "learning",
+      "confirmed": true,
+      "note": "Exploratorium science museum, Pier 15"
+    },
+    {
+      "url": "https://www.instagram.com/sfmoma/",
+      "limit": 12,
+      "category": "arts",
+      "confirmed": false,
+      "note": "Likely SFMOMA's handle; not confirmed. Remove if the run returns nothing for it."
+    },
+    {
+      "url": "https://www.instagram.com/calacademy/",
+      "limit": 12,
+      "category": "learning",
+      "confirmed": false,
+      "note": "Likely California Academy of Sciences; not confirmed."
+    },
+    {
+      "url": "https://www.instagram.com/explore/tags/sfevents/",
+      "limit": 20,
+      "category": "other",
+      "confirmed": false,
+      "note": "Hashtag feed: noisy, and posts may not be in SF. Location-tagged posts geocode best."
+    }
+  ]
+}

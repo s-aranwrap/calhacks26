@@ -22,10 +22,11 @@ import type {
   UserLocation,
   UserPreferences,
 } from '@/core/types';
-import { localId } from '@/core/util';
+import { distanceKm, localId } from '@/core/util';
 import { loadCatalog, type CatalogState } from '@/data/catalogService';
 import { resolveConfig } from '@/data/config';
 import { DEMO_CENTER } from '@/data/fixtures/demoActivities';
+import { createPackRepository, SF_PACK } from '@/data/packs';
 import { DEFAULT_PREFERENCES } from '@/data/local/preferences';
 import { createSqliteUserStore } from '@/data/local/sqliteUserStore';
 import { createDemoRepository } from '@/data/repositories/demoRepository';
@@ -117,16 +118,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHistory({ feedback, adventures });
   }, [store]);
 
+  const cityPack = useMemo(
+    () => (config.cityPack === 'sf' ? { pack: SF_PACK, repository: createPackRepository(SF_PACK) } : null),
+    [],
+  );
+
   const reloadCatalog = useCallback(async () => {
     setCatalogLoading(true);
     try {
       // Sample prices follow the user's currency, read at load time.
       const demo = createDemoRepository({ currency: () => prefsRef.current.currency });
-      setCatalog(await loadCatalog({ demo, remote, store }));
+      setCatalog(await loadCatalog({ demo, remote, cityPack, store }));
     } finally {
       setCatalogLoading(false);
     }
-  }, [remote, store]);
+  }, [cityPack, remote, store]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,10 +155,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const origin = useMemo<GeoPoint | undefined>(() => {
     if (catalog?.usesDemo) return DEMO_CENTER;
     const loc = preferences.location;
-    return loc && loc.latitude !== undefined && loc.longitude !== undefined
-      ? { latitude: loc.latitude, longitude: loc.longitude }
-      : undefined;
-  }, [catalog?.usesDemo, preferences.location]);
+    const user =
+      loc && loc.latitude !== undefined && loc.longitude !== undefined
+        ? { latitude: loc.latitude, longitude: loc.longitude }
+        : undefined;
+    const pack = catalog?.cityPack;
+    // With a city pack, use the user's position only if they're actually in or near that city;
+    // otherwise measure from the city center so a demo outside SF still works.
+    if (pack) return user && distanceKm(user, pack.center) <= 50 ? user : pack.center;
+    return user;
+  }, [catalog?.usesDemo, catalog?.cityPack, preferences.location]);
 
   const updatePreferences = useCallback(
     async (patch: Partial<UserPreferences>) => {

@@ -103,7 +103,7 @@ This is exactly what was run on this project (Expo SDK 58: React Native 0.88, Re
 **Run and passing**
 - `npm install` with the SDK 58 versions, and `npx expo install --check` (in offline mode; Expo's API wasn't reachable).
 - `npm run typecheck`: the app against the installed Expo, React and React Native packages, plus a stricter check of core, data, server and tests.
-- `npm test`: 150 tests, 0 failures (Node 22.23).
+- `npm test`: 166 tests, 0 failures (Node 22.23).
 - `npx expo lint`: no errors or warnings.
 - `npx expo export --platform ios --platform android`: Metro bundled the whole app for both platforms.
 - `expo-doctor`: 18 of 20 checks pass. The other two need Expo's online API and couldn't run here.
@@ -266,6 +266,30 @@ There are two ways in, and both use the same normalizer and deduplication:
 | `challenge_novelty`, `challenge_social`, `challenge_physical`, `challenge_commitment` | 0, 1 or 2 to override inference |
 
 Samples: `data/samples/activities.sample.csv` and `data/samples/activities.sample.json`. They're fictional and their events are dated November 2026, so edit the dates if you're reading this later.
+
+## San Francisco demo
+
+The app ships with a **San Francisco pack**, which replaces the fictional sample town by default:
+
+- **`src/data/packs/sfEvergreen.ts`**: about 20 well-known public places (Lands End, Dolores Park, the Filbert Steps, the Ferry Building, SFMOMA…). It follows strict accuracy rules: no opening hours or ticket prices, "free" only for parks, trails, streets and long-standing free entry, and official homepage links only. Everything is labeled *Unverified*.
+- **`src/data/packs/sfInstagram.generated.ts`**: upcoming events pulled from Instagram with Apify. It's empty until you run the script below.
+
+Distances are measured from Union Square until the user shares a location in or near SF. Set `EXPO_PUBLIC_CITY_PACK=none` in `.env` to go back to the fictional town.
+
+### Refreshing Instagram events
+
+```bash
+cp server/.env.example server/.env   # set APIFY_API_TOKEN (and NOMINATIM_EMAIL if you'll geocode)
+npm run ingest:sf -- --dry-run       # lists sources and the maximum number of posts; costs nothing
+npm run ingest:sf -- --geocode       # runs Apify, saves the raw run, writes the pack
+npm run ingest:sf -- --from-raw latest   # re-process the last run without spending credits
+```
+
+- **Sources:** `server/ingest/sf/sources.json` sets the accounts and hashtags, plus how many posts to take from each. `@funcheap` and `@exploratorium` are confirmed handles. The others are marked *unconfirmed*; drop any that come back empty. The default plan is at most 86 posts per run, which is cents. A run over `maxResultsPerRun` (150) is refused unless you pass `--yes`.
+- **Extraction:** `server/ingest/extractEvent.ts` keeps a post only if its caption names **exactly one date and a time** (for example "Sat, Nov 8 · 6–10pm", "11/14 at 7:30pm" or "tonight 8pm"). It picks up a price when one is clear ("$15–25", "free entry"). Roundup posts that list many events are skipped on purpose, as are past dates and anything ambiguous. Every extracted value is marked *estimated*.
+- **Locations:** `--geocode` looks up Instagram location tags with OpenStreetMap's Nominatim, restricted to SF, at most 1 request per second, and caches results in `server/ingest/sf/geocache.json`. Events without coordinates still show; their distance is just unknown.
+- **Demo mode:** to keep the demo moving, events are published as *Unverified* straight away instead of waiting in the review queue. Each card links to the original post. Put a review step back in front of this before a public launch.
+- After a run, restart `npx expo start` (or just save a file). The new pack is bundled into the app.
 
 ## Configuring Supabase (optional)
 

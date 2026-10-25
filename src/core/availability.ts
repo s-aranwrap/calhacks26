@@ -8,14 +8,7 @@ import type { Activity } from './types.ts';
 import { DAY_MS, MINUTE_MS, parseTime } from './util.ts';
 
 export type AvailabilityState =
-  | 'evergreen'
-  | 'upcoming'
-  | 'happening_now'
-  | 'ended'
-  | 'sold_out'
-  | 'cancelled'
-  | 'date_unknown'
-  | 'too_far_ahead';
+  'evergreen' | 'upcoming' | 'happening_now' | 'ended' | 'sold_out' | 'cancelled' | 'date_unknown' | 'too_far_ahead';
 
 export interface AvailabilityAssessment {
   /** Can this be recommended as something to do now / soon? */

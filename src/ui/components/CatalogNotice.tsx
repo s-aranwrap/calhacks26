@@ -9,7 +9,7 @@ import { useApp } from '@/state/AppProvider';
 import { Notice } from './feedback';
 
 export function CatalogNotice() {
-  const { catalog } = useApp();
+  const { catalog, origin } = useApp();
   if (!catalog) return null;
 
   if (catalog.remoteStatus === 'cached') {
@@ -19,7 +19,20 @@ export function CatalogNotice() {
     );
   }
   if (catalog.remoteStatus === 'unavailable' && !catalog.usesDemo) {
-    return <Notice tone="offline">Couldn’t reach the online catalog. Showing the activities you imported.</Notice>;
+    return (
+      <Notice tone="offline">Couldn’t reach the online catalog. Showing the activities saved on this phone.</Notice>
+    );
+  }
+  const pack = catalog.cityPack;
+  if (pack) {
+    const fromCenter = origin?.latitude === pack.center.latitude && origin.longitude === pack.center.longitude;
+    return (
+      <Notice tone="info" icon="map-outline">
+        {`${pack.city} picks: well-known places plus events found on Instagram. These aren’t verified yet, so check the post before you go.${
+          fromCenter ? ` Distances are from ${pack.centerLabel} until you share your location in Settings.` : ''
+        }`}
+      </Notice>
+    );
   }
   if (catalog.usesDemo) {
     return (

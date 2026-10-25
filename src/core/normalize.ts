@@ -90,8 +90,7 @@ export interface NormalizeContext {
 }
 
 export type NormalizeResult =
-  | { ok: true; activity: Activity; warnings: string[] }
-  | { ok: false; errors: string[]; warnings: string[] };
+  { ok: true; activity: Activity; warnings: string[] } | { ok: false; errors: string[]; warnings: string[] };
 
 const VERIFICATION_STATUSES: readonly VerificationStatus[] = ['verified', 'unverified', 'candidate', 'demo'];
 const AVAILABILITIES: readonly Availability[] = ['available', 'limited', 'sold_out', 'cancelled', 'unknown'];

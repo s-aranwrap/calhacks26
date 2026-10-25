@@ -3,7 +3,8 @@
  *
  * Two records are considered the same listing when any of these match:
  *  1. same platform + source ID (e.g. the same Instagram shortcode),
- *  2. same canonical source URL (tracking params, www., trailing slashes ignored),
+ *  2. same canonical source URL (tracking params, www., trailing slashes ignored)
+ *     and the same start time. Bare homepages are ignored: many listings can share one,
  *  3. same fingerprint: normalized title + start minute (or "evergreen") + venue.
  *
  * When duplicates collide we keep the most trustworthy record and only fill
@@ -25,7 +26,12 @@ export function dedupeKeys(activity: Activity): { key: string; kind: DuplicateRe
     keys.push({ key: `src:${activity.source.platform}:${activity.source.sourceId}`, kind: 'source_id' });
   }
   const canonical = canonicalizeUrl(activity.source.url);
-  if (canonical) keys.push({ key: `url:${canonical}`, kind: 'url' });
+  // A homepage (no path) says nothing about which listing this is, and one page can list
+  // several dated events, so the URL only identifies a listing together with its start time.
+  if (canonical && canonical.includes('/')) {
+    const when = activity.kind === 'event' ? (activity.startAt?.slice(0, 16) ?? 'undated') : 'evergreen';
+    keys.push({ key: `url:${canonical}|${when}`, kind: 'url' });
+  }
   const venueKey = activity.venue
     ? normalizeText(activity.venue.name) ||
       (activity.venue.latitude !== undefined && activity.venue.longitude !== undefined

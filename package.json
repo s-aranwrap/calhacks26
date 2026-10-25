@@ -15,7 +15,8 @@
     "check": "npm run typecheck && npm test && npm run lint",
     "import:file": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/ingest/import-file.ts",
     "ingest:instagram": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/ingest/instagram-cli.ts",
-    "db:check": "bash scripts/check-migrations.sh"
+    "db:check": "bash scripts/check-migrations.sh",
+    "ingest:sf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/ingest/sf-instagram.ts"
   },
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",
