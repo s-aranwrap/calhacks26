@@ -15,8 +15,8 @@ import { useApp } from '@/state/AppProvider';
 import { Celebration } from '@/ui/components/Celebration';
 import { FactRow, Notice, StateView } from '@/ui/components/feedback';
 import { Mascot } from '@/ui/components/Mascot';
-import { AppText, Button, Card, LinkButton, Screen, TopBar } from '@/ui/components/primitives';
-import { whenText } from '@/ui/components/QuestCard';
+import { AppText, Button, Card, LinkButton, Row, Screen, TopBar } from '@/ui/components/primitives';
+import { whenText } from '@/ui/activityMeta';
 import { REACTION_META } from '@/ui/components/reactions';
 import { directionsUrl } from '@/ui/links';
 import { colors, fonts, radius, spacing } from '@/ui/theme';
@@ -53,6 +53,13 @@ export default function AdventureFocus() {
   const directions = directionsUrl(activity);
   const completedCount = app.history.adventures.filter((a) => a.status === 'completed').length;
 
+  function confirmDone() {
+    Alert.alert('Did you do this adventure?', activity.title, [
+      { text: 'Not yet', style: 'cancel' },
+      { text: 'Yes, I did!', onPress: () => void markDone() },
+    ]);
+  }
+
   async function markDone() {
     setBusy(true);
     try {
@@ -64,10 +71,10 @@ export default function AdventureFocus() {
   }
 
   function changePlans() {
-    Alert.alert('Change of plans?', 'No worries, nothing is lost. You can always find something else.', [
+    Alert.alert('Cancel this plan?', 'No worries, nothing is lost. It won’t count as completed.', [
       { text: 'Keep my plan', style: 'cancel' },
       {
-        text: entry?.savedAt ? 'Move back to Saved' : 'Remove plan',
+        text: entry?.savedAt ? 'Move back to Saved' : 'Cancel plan',
         style: 'destructive',
         onPress: async () => {
           await app.cancelPlan(activity.id);
@@ -79,7 +86,7 @@ export default function AdventureFocus() {
 
   if (entry.status === 'completed') {
     return (
-      <Screen footer={<Button label="Back to Huddle" onPress={goHome} />}>
+      <Screen>
         <TopBar onBack={goHome} />
         {justCompleted ? <Celebration penguinNumber={completedCount} /> : null}
         <View style={styles.hero}>
@@ -94,6 +101,8 @@ export default function AdventureFocus() {
           key={entry.activityId}
           initialReaction={entry.reaction}
           initialText={entry.reflection ?? ''}
+          skipLabel={justCompleted ? 'Skip' : 'Back'}
+          onSkip={goHome}
           onSave={async (reaction, text) => {
             await app.reflect(activity.id, reaction, text);
             // Saving the reflection wraps up the adventure.
@@ -112,27 +121,30 @@ export default function AdventureFocus() {
       footer={
         <>
           <Button
-            label="I did it!"
+            label="Mark completed"
             icon="checkmark-circle-outline"
-            onPress={markDone}
+            onPress={confirmDone}
             loading={busy}
-            accessibilityHint="Marks this adventure as completed"
+            accessibilityHint="Asks to confirm, then moves this to Completed"
           />
-          <Button label="Change of plans" variant="secondary" onPress={changePlans} />
-          <Button
-            label="Back to Huddle"
-            variant="ghost"
-            icon="arrow-back"
-            onPress={goHome}
-            accessibilityHint="Leaves this screen. Your plan stays as it is."
-          />
+          <Row gap={spacing.sm}>
+            <Button
+              label="Change plan"
+              variant="secondary"
+              compact
+              style={styles.flex}
+              onPress={() => router.navigate('/discover')}
+              accessibilityHint="Your plan stays until you pick a new one"
+            />
+            <Button label="Cancel plan" variant="ghost" compact style={styles.flex} onPress={changePlans} />
+          </Row>
         </>
       }
     >
       <TopBar onBack={goHome} />
       <View style={styles.hero}>
         <Mascot size={120} pose="cheering" accessibilityLabel="Penguin cheering you on" />
-        <AppText variant="caption" color={colors.skyInk}>
+        <AppText variant="caption" color={colors.primaryInk}>
           {entry.status === 'planned' ? 'YOU’RE GOING' : 'SAVED FOR LATER'}
         </AppText>
         <AppText variant="title" center accessibilityRole="header">
@@ -181,8 +193,8 @@ export default function AdventureFocus() {
       </Card>
 
       {activity.whatToExpect ? (
-        <Card tone="peach">
-          <AppText variant="smallStrong" color={colors.peachInk}>
+        <Card tone="blush">
+          <AppText variant="smallStrong" color={colors.blushInk}>
             What to expect
           </AppText>
           <AppText variant="body">{activity.whatToExpect}</AppText>
@@ -196,22 +208,25 @@ function ReflectionForm({
   initialReaction,
   initialText,
   onSave,
+  onSkip,
+  skipLabel,
 }: {
   initialReaction: Reaction | undefined;
   initialText: string;
   onSave: (reaction: Reaction | undefined, text: string | undefined) => Promise<void>;
+  onSkip: () => void;
+  skipLabel: string;
 }) {
   const [reaction, setReaction] = useState<Reaction | undefined>(initialReaction);
   const [text, setText] = useState(initialText);
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
   const dirty = reaction !== initialReaction || text.trim() !== initialText.trim();
 
-  async function save() {
+  async function done() {
+    if (!dirty) return onSkip();
     setSaving(true);
     try {
       await onSave(reaction, text.trim() || undefined);
-      setSavedAt(Date.now());
     } finally {
       setSaving(false);
     }
@@ -223,7 +238,7 @@ function ReflectionForm({
         How was it?
       </AppText>
       <AppText variant="small">
-        Optional, and only for you. Your reaction helps Huddle suggest better things next time.
+        Optional. Your reaction helps Huddle suggest better things next time.
       </AppText>
       <View style={styles.reactions} accessibilityRole="radiogroup" accessibilityLabel="Your reaction">
         {REACTIONS.map((r) => {
@@ -245,7 +260,7 @@ function ReflectionForm({
               <Text style={styles.reactionEmoji} accessibilityElementsHidden importantForAccessibility="no">
                 {meta.emoji}
               </Text>
-              <AppText variant="caption" color={selected ? colors.skyInk : colors.inkMuted} center numberOfLines={2}>
+              <AppText variant="caption" color={selected ? colors.primaryInk : colors.inkMuted} center numberOfLines={2}>
                 {meta.label}
               </AppText>
             </Pressable>
@@ -255,7 +270,7 @@ function ReflectionForm({
       <TextInput
         value={text}
         onChangeText={setText}
-        placeholder="Anything you want to remember? (private)"
+        placeholder="Anything you want to remember?"
         placeholderTextColor={colors.inkMuted}
         multiline
         // The Return key closes the keyboard instead of adding a new line.
@@ -267,20 +282,16 @@ function ReflectionForm({
         accessibilityHint="Stays on this phone"
         textAlignVertical="top"
       />
-      <Button
-        label={savedAt && !dirty ? 'Saved' : 'Save'}
-        icon={savedAt && !dirty ? 'checkmark' : undefined}
-        variant="soft"
-        onPress={save}
-        loading={saving}
-        disabled={!dirty}
-      />
+      <AppText variant="caption">Private. Stays on this phone unless you export it.</AppText>
+      <Button label="Done" onPress={() => void done()} loading={saving} />
+      <Button label={skipLabel} variant="ghost" onPress={onSkip} />
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
   hero: { alignItems: 'center', gap: spacing.sm },
+  flex: { flex: 1 },
   reactions: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.xs },
   reaction: {
     flex: 1,
@@ -294,7 +305,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: 2,
   },
-  reactionSelected: { borderColor: colors.sky, backgroundColor: colors.skyTint },
+  reactionSelected: { borderColor: colors.primaryAccent, backgroundColor: colors.primaryTint, borderWidth: 2 },
   reactionEmoji: { fontSize: 26 },
   reflection: {
     minHeight: 110,

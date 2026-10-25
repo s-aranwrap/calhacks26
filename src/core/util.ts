@@ -82,11 +82,11 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Formats a distance for humans: "800 m", "2.4 km", "15 km". */
+/** Formats a distance (given in km) in miles for humans: "0.3 mi", "2.4 mi", "15 mi". */
 export function formatDistance(km: number): string {
-  if (km < 1) return `${Math.max(50, Math.round((km * 1000) / 50) * 50)} m`;
-  if (km < 10) return `${km.toFixed(1)} km`;
-  return `${Math.round(km)} km`;
+  const miles = km / 1.609344;
+  if (miles < 10) return `${Math.max(0.1, Math.round(miles * 10) / 10)} mi`;
+  return `${Math.round(miles)} mi`;
 }
 
 /** Formats minutes as "45 min", "1.5 hr", "3 hr". */

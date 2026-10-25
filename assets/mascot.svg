@@ -1,19 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
-  <!-- Huddle penguin (original artwork). Mirrors src/ui/components/Mascot.tsx, pose "waving". -->
-  <path d="M36 66 C24 76 22 92 28 102 C34 94 40 84 44 74 Z" fill="#2E3440"/>
-  <path d="M82 70 C98 58 102 42 96 34 C90 44 84 54 76 62 Z" fill="#2E3440"/>
-  <path d="M60 18 C36 18 30 44 30 70 C30 96 42 108 60 108 C78 108 90 96 90 70 C90 44 84 18 60 18 Z" fill="#2E3440"/>
-  <path d="M60 40 C46 40 40 56 40 74 C40 94 48 102 60 102 C72 102 80 94 80 74 C80 56 74 40 60 40 Z" fill="#FFFDF9"/>
-  <ellipse cx="60" cy="44" rx="20" ry="14" fill="#FFFDF9"/>
-  <ellipse cx="49" cy="108" rx="8" ry="4" fill="#F2A25C"/>
-  <ellipse cx="71" cy="108" rx="8" ry="4" fill="#F2A25C"/>
-  <path d="M38 58 C50 64 70 64 82 58 L82 66 C70 72 50 72 38 66 Z" fill="#F4B596"/>
-  <path d="M70 64 L78 84 L70 82 L66 66 Z" fill="#F4B596"/>
-  <circle cx="51" cy="41" r="3.4" fill="#2E3440"/>
-  <circle cx="69" cy="41" r="3.4" fill="#2E3440"/>
-  <circle cx="52.2" cy="39.8" r="1.1" fill="#FFFFFF"/>
-  <circle cx="70.2" cy="39.8" r="1.1" fill="#FFFFFF"/>
-  <circle cx="45" cy="48" r="3.2" fill="#F4B596" opacity="0.6"/>
-  <circle cx="75" cy="48" r="3.2" fill="#F4B596" opacity="0.6"/>
-  <path d="M55 48 L65 48 L60 54 Z" fill="#F2A25C"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Huddle penguin (original artwork). src/ui/components/Mascot.tsx draws the same shapes. -->
+  <!-- Feet -->
+  <path d="M355 824 C316 819 289 844 301 865 C313 885 376 889 424 873 C447 865 444 846 420 836 Z" fill="#FFA936"/>
+  <path d="M669 824 C708 819 735 844 723 865 C711 885 648 889 600 873 C577 865 580 846 604 836 Z" fill="#FFA936"/>
+  <!-- Flippers -->
+  <path d="M350 505 C300 539 258 619 247 694 C242 726 263 743 290 729 L365 681 Z" fill="#292B38"/>
+  <path d="M674 505 C724 539 766 619 777 694 C782 726 761 743 734 729 L659 681 Z" fill="#292B38"/>
+  <!-- Main body -->
+  <path d="M302 437 C302 278 392 190 512 190 C632 190 722 278 722 437 L722 692 C722 789 636 832 512 832 C388 832 302 789 302 692 Z" fill="#292B38"/>
+  <!-- Face patch -->
+  <path d="M330 434 C330 319 405 259 465 282 C489 291 499 317 512 317 C525 317 535 291 559 282 C619 259 694 319 694 434 C694 524 631 581 512 581 C393 581 330 524 330 434 Z" fill="#FFFDF9"/>
+  <!-- Belly -->
+  <path d="M337 601 C371 560 423 543 512 543 C601 543 653 560 687 601 C707 627 710 685 694 733 C672 790 607 807 512 807 C417 807 352 790 330 733 C314 685 317 627 337 601 Z" fill="#FFFDF9"/>
+  <!-- Eyes and highlights -->
+  <ellipse cx="419" cy="419" rx="32" ry="39" fill="#292B38"/>
+  <ellipse cx="605" cy="419" rx="32" ry="39" fill="#292B38"/>
+  <circle cx="429" cy="405" r="9" fill="#FFFFFF"/>
+  <circle cx="615" cy="405" r="9" fill="#FFFFFF"/>
+  <!-- Rosy cheeks -->
+  <ellipse cx="371" cy="469" rx="30" ry="20" fill="#FFB9B3"/>
+  <ellipse cx="653" cy="469" rx="30" ry="20" fill="#FFB9B3"/>
+  <!-- Beak -->
+  <path d="M468 445 C482 431 542 431 556 445 C565 454 543 477 512 491 C481 477 459 454 468 445 Z" fill="#FFA936"/>
 </svg>

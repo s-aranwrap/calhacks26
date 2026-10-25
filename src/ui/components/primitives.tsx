@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, radius, shadow, spacing, touchTarget, type, type TypeVariant } from '../theme';
+import { colors, gutter, radius, shadow, spacing, touchTarget, type, type TypeVariant } from '../theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -74,11 +74,11 @@ export interface ButtonProps {
 }
 
 const BUTTON_COLORS: Record<ButtonVariant, { bg: string; pressed: string; fg: string; border?: string }> = {
-  primary: { bg: colors.sky, pressed: colors.skyPressed, fg: colors.white },
-  secondary: { bg: colors.surface, pressed: colors.surfaceAlt, fg: colors.ink, border: colors.border },
-  soft: { bg: colors.skyTint, pressed: '#CFE5F7', fg: colors.skyInk },
-  ghost: { bg: 'transparent', pressed: colors.surfaceAlt, fg: colors.skyInk },
-  danger: { bg: colors.dangerTint, pressed: '#F2CFCB', fg: colors.danger },
+  primary: { bg: colors.primary, pressed: colors.primaryPressed, fg: colors.white },
+  secondary: { bg: colors.surface, pressed: colors.surfaceAlt, fg: colors.ink, border: colors.primaryAccent },
+  soft: { bg: colors.primaryTint, pressed: '#F1D3DC', fg: colors.primaryInk },
+  ghost: { bg: 'transparent', pressed: colors.surfaceAlt, fg: colors.primaryInk },
+  danger: { bg: colors.dangerTint, pressed: '#F5CDD1', fg: colors.danger },
 };
 
 export function Button({
@@ -108,7 +108,7 @@ export function Button({
         styles.button,
         compact && styles.buttonCompact,
         { backgroundColor: pressed ? c.pressed : c.bg },
-        c.border ? { borderWidth: 1, borderColor: c.border } : null,
+        c.border ? { borderWidth: 1.5, borderColor: c.border } : null,
         inactive ? styles.disabled : null,
         style,
       ]}
@@ -118,7 +118,7 @@ export function Button({
       ) : (
         <>
           {icon ? <Icon name={icon} size={18} color={c.fg} /> : null}
-          <AppText variant="bodyStrong" color={c.fg} numberOfLines={2} center>
+          <AppText variant={compact ? 'bodyStrong' : 'label'} color={c.fg} numberOfLines={2} center>
             {label}
           </AppText>
           {iconRight ? <Icon name={iconRight} size={18} color={c.fg} /> : null}
@@ -133,7 +133,7 @@ export function LinkButton({
   label,
   onPress,
   icon,
-  color = colors.skyInk,
+  color = colors.primaryInk,
 }: {
   label: string;
   onPress: () => void;
@@ -165,15 +165,12 @@ export interface ChipProps {
   onPress?: () => void;
   emoji?: string;
   icon?: IconName;
-  tone?: 'sky' | 'peach';
   accessibilityHint?: string;
 }
 
-export function Chip({ label, selected, onPress, emoji, icon, tone = 'sky', accessibilityHint }: ChipProps) {
-  const active =
-    tone === 'peach'
-      ? { bg: colors.peachTint, border: colors.peach, fg: colors.peachInk }
-      : { bg: colors.skyTint, border: colors.sky, fg: colors.skyInk };
+/** Selected chips get a tint, a stronger outline and a check, so the state never rests on color alone. */
+export function Chip({ label, selected, onPress, emoji, icon, accessibilityHint }: ChipProps) {
+  const active = { bg: colors.primaryTint, border: colors.primaryAccent, fg: colors.primaryInk };
   return (
     <Pressable
       onPress={onPress}
@@ -193,6 +190,7 @@ export function Chip({ label, selected, onPress, emoji, icon, tone = 'sky', acce
           {emoji}
         </Text>
       ) : null}
+      {selected && onPress && !icon && !emoji ? <Icon name="checkmark" size={16} color={active.fg} /> : null}
       {icon ? <Icon name={icon} size={16} color={selected ? active.fg : colors.inkSoft} /> : null}
       <AppText variant="smallStrong" color={selected ? active.fg : colors.ink}>
         {label}
@@ -243,10 +241,73 @@ export function Card({
 }: {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
-  tone?: 'surface' | 'sky' | 'peach';
+  tone?: CardTone;
 }) {
-  const bg = tone === 'sky' ? colors.skyTint : tone === 'peach' ? colors.peachTint : colors.surface;
-  return <View style={[styles.card, { backgroundColor: bg }, style]}>{children}</View>;
+  const t = CARD_TONES[tone];
+  return <View style={[styles.card, { backgroundColor: t.bg, borderColor: t.border }, tone !== 'surface' && styles.flat, style]}>{children}</View>;
+}
+
+export type CardTone = 'surface' | 'primary' | 'blush' | 'sky' | 'teal';
+const CARD_TONES: Record<CardTone, { bg: string; border: string }> = {
+  surface: { bg: colors.surface, border: colors.borderSoft },
+  primary: { bg: colors.primaryTint, border: colors.primaryTint },
+  blush: { bg: colors.blushTint, border: colors.blushTint },
+  sky: { bg: colors.skyTint, border: colors.skyTint },
+  teal: { bg: colors.tealTint, border: colors.tealTint },
+};
+
+/** Screen title with an optional one-line subtitle. */
+export function ScreenHeader({ title, subtitle, right }: { title: string; subtitle?: string; right?: ReactNode }) {
+  return (
+    <View style={styles.screenHeader}>
+      <View style={styles.screenHeaderText}>
+        <AppText variant="title" accessibilityRole="header">
+          {title}
+        </AppText>
+        {subtitle ? <AppText variant="body" color={colors.inkSoft}>{subtitle}</AppText> : null}
+      </View>
+      {right}
+    </View>
+  );
+}
+
+/** A labelled show/hide section (progressive disclosure). */
+export function Disclosure({
+  label,
+  open,
+  onToggle,
+  summary,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  summary?: string;
+  children: ReactNode;
+}) {
+  return (
+    <View style={styles.disclosure}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ expanded: open }}
+        {...(summary ? { accessibilityHint: summary } : {})}
+        style={({ pressed }) => [styles.disclosureHeader, pressed && { opacity: 0.7 }]}
+      >
+        <View style={styles.shrink}>
+          <AppText variant="bodyStrong">{label}</AppText>
+          {summary && !open ? (
+            <AppText variant="caption" numberOfLines={1}>
+              {summary}
+            </AppText>
+          ) : null}
+        </View>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={20} color={colors.ink} />
+      </Pressable>
+      {open ? <View style={styles.disclosureBody}>{children}</View> : null}
+    </View>
+  );
 }
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
@@ -314,7 +375,7 @@ export function TopBar({ onBack, title, right }: { onBack?: () => void; title?: 
           onPress={onBack}
           accessibilityRole="button"
           accessibilityLabel="Go back"
-          style={({ pressed }) => [styles.iconButton, pressed && { backgroundColor: colors.surfaceAlt }]}
+          style={({ pressed }) => [styles.iconButton, styles.backButton, pressed && { backgroundColor: colors.surfaceAlt }]}
         >
           <Icon name="chevron-back" size={24} color={colors.ink} />
         </Pressable>
@@ -355,9 +416,9 @@ const styles = StyleSheet.create({
   center: { textAlign: 'center' },
   fill: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: spacing.lg, gap: spacing.lg },
+  content: { paddingHorizontal: gutter, gap: spacing.lg },
   footer: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: gutter,
     paddingTop: spacing.md,
     gap: spacing.sm,
     backgroundColor: colors.bg,
@@ -365,8 +426,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   button: {
-    minHeight: touchTarget + 4,
-    borderRadius: radius.pill,
+    minHeight: 54,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     flexDirection: 'row',
@@ -374,7 +435,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
-  buttonCompact: { minHeight: 44, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  buttonCompact: { minHeight: 44, borderRadius: 14, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   disabled: { opacity: 0.5 },
   link: {
     minHeight: 44,
@@ -395,20 +456,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs + 2,
   },
+  shrink: { flexShrink: 1 },
+  flat: { shadowOpacity: 0, elevation: 0 },
+  screenHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  screenHeaderText: { flex: 1, gap: spacing.xs },
+  disclosure: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  disclosureHeader: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  disclosureBody: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.xl },
   emoji: { fontSize: 16 },
   choiceGroup: { gap: spacing.sm },
   wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: {
     borderRadius: radius.lg,
-    padding: spacing.lg,
+    padding: spacing.lg + 2,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
     ...shadow,
   },
   section: { gap: spacing.md },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  topBar: { flexDirection: 'row', alignItems: 'center', minHeight: touchTarget, marginHorizontal: -spacing.sm },
+  topBar: { flexDirection: 'row', alignItems: 'center', minHeight: touchTarget, gap: spacing.sm },
   topBarTitle: { flex: 1, textAlign: 'center' },
   topBarRight: { minWidth: touchTarget, alignItems: 'flex-end' },
   iconButton: {
@@ -418,6 +498,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  backButton: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   row: { flexDirection: 'row', alignItems: 'center' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
 });

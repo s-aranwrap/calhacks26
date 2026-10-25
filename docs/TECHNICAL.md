@@ -2,7 +2,7 @@
 
 This is the detailed developer reference. For a plain-language overview and setup steps, see the main [README](../README.md).
 
-**Less scrolling. More living.**
+**Less wondering. More waddling.**
 
 Huddle helps you find something worth doing nearby, decide quickly, and put your phone away. Pick a mood, get exactly three suggestions, commit to one, and the app narrows down to that single plan until you're done. Afterwards you can leave an emoji reaction and a private note, and a small penguin joins your huddle.
 

@@ -1,30 +1,30 @@
 /**
- * Activity details: everything needed to decide, with verified, estimated
- * and unknown facts clearly distinguished. The primary action commits
- * ("I'm going" / "I'll try this") and switches to the focused adventure view.
+ * Activity details and commitment. Facts are grouped as When, Where, Cost,
+ * What to know and Source, with estimated and unknown values labelled.
+ * "Let's Adventure!" plans it (one plan at a time; replacing one asks first),
+ * "Maybe" just goes back, and "Not for me" passes it for this session.
  */
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, Linking, StyleSheet, View } from 'react-native';
 
 import { assessAvailability } from '@/core/availability';
-import { formatWeeklyHours, parsedHours } from '@/core/hours';
-import { assessChallenge, CHALLENGE_LABEL } from '@/core/challenge';
-import { formatDuration, formatPrice } from '@/core/format';
-import { formatCheckedAgo, isValidTimeZone } from '@/core/time';
-import { distanceKm, formatDistance } from '@/core/util';
-import { useApp } from '@/state/AppProvider';
-import { ChallengeBadge, FactRow, Notice, StateView, TrustBadge } from '@/ui/components/feedback';
-import { AppText, Button, Card, Icon, Row, Screen, Section, TopBar } from '@/ui/components/primitives';
-import { CATEGORY_ICON, CATEGORY_LABEL, whenText } from '@/ui/components/QuestCard';
-import { directionsUrl, sourceHost } from '@/ui/links';
-import { colors, radius, spacing, touchTarget } from '@/ui/theme';
+import type { Activity } from '@/core/types';
+import { focusAdventure, useApp } from '@/state/AppProvider';
+import { ActivityImage } from '@/ui/components/ActivityImage';
+import { DetailsBody } from '@/ui/components/ActivityDetails';
+import { Notice, StateView } from '@/ui/components/feedback';
+import { Mascot } from '@/ui/components/Mascot';
+import { AppText, Button, Icon, LinkButton, Row, Screen, TopBar } from '@/ui/components/primitives';
+import { colors, radius, spacing } from '@/ui/theme';
 
 export default function ActivityDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const app = useApp();
   const [busy, setBusy] = useState(false);
+  const committing = useRef(false);
+  const [committed, setCommitted] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const activity = id ? app.findActivity(id) : null;
@@ -44,29 +44,41 @@ export default function ActivityDetails() {
   const now = new Date();
   const entry = app.entryFor(activity.id);
   const recommendation = app.discovery?.result.recommendations.find((r) => r.activity.id === activity.id);
+  const passed = !!app.discovery?.dismissedIds.includes(activity.id);
   const availability = assessAvailability(activity, now);
-  const challenge = assessChallenge(activity);
-  const price = formatPrice(activity.price);
-  const duration = formatDuration(activity.duration);
-  const when = whenText(activity, now);
-  const weekly = activity.kind === 'evergreen' ? parsedHours(activity.openingHours) : null;
-  const whenDetail =
-    [
-      weekly ? formatWeeklyHours(weekly) : undefined,
-      activity.openingHoursSource ? `Hours from ${activity.openingHoursSource}` : undefined,
-    ]
-      .filter(Boolean)
-      .join('. ') || undefined;
-  const distance =
-    recommendation?.distanceKm ??
-    (app.origin && activity.venue?.latitude !== undefined && activity.venue.longitude !== undefined
-      ? distanceKm(app.origin, { latitude: activity.venue.latitude, longitude: activity.venue.longitude })
-      : undefined);
-  const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const showZone = activity.kind === 'event' && isValidTimeZone(activity.timeZone) && activity.timeZone !== deviceZone;
-  const directions = directionsUrl(activity);
-  const isDemo = activity.verification.status === 'demo';
-  const checked = formatCheckedAgo(activity.verification.lastCheckedAt, now);
+  const backToDiscover = () => router.dismissTo('/discover');
+
+  if (committed) {
+    return (
+      <Screen
+        footer={
+          <>
+            <Button
+              label="View My Adventure"
+              iconRight="arrow-forward"
+              onPress={() => router.replace({ pathname: '/adventure/[id]', params: { id: activity.id } })}
+            />
+            <Button label="Back to Discover" variant="ghost" onPress={backToDiscover} />
+          </>
+        }
+      >
+        <View style={styles.success} accessibilityLiveRegion="polite">
+          <Mascot size={150} pose="cheering" accessibilityLabel="The Huddle penguin cheering" />
+          <AppText variant="title" center accessibilityRole="header">
+            It’s happening! 🎉
+          </AppText>
+          <AppText variant="body" center>
+            {activity.title} is your next adventure.
+          </AppText>
+          <AppText variant="small" center>
+            {activity.restrictions && /reserv|book|ticket|rsvp|regist/i.test(activity.restrictions)
+              ? 'Heads up: this one needs a booking or reservation. Planning it in Huddle doesn’t book anything, so sort that with the organizer.'
+              : 'Planning it in Huddle doesn’t buy tickets or make a reservation. Check the source if you need to book.'}
+          </AppText>
+        </View>
+      </Screen>
+    );
+  }
 
   async function open(url: string) {
     setLinkError(null);
@@ -77,19 +89,44 @@ export default function ActivityDetails() {
     }
   }
 
-  async function commit() {
-    if (!activity) return;
+  async function commitTo(target: Activity, replacing: string | null) {
+    if (committing.current) return;
+    committing.current = true;
     setBusy(true);
     try {
-      await app.plan(activity);
-      router.replace({ pathname: '/adventure/[id]', params: { id: activity.id } });
+      if (replacing) await app.replacePlan(replacing, target);
+      else await app.plan(target);
+      setCommitted(true);
     } finally {
+      committing.current = false;
       setBusy(false);
     }
   }
 
-  const saved = !!entry;
-  const primary =
+  function letsAdventure() {
+    if (!activity || committing.current) return;
+    const current = focusAdventure(app.history.adventures);
+    if (current && current.activityId !== activity.id) {
+      Alert.alert(
+        'Replace your current plan?',
+        `You’re already planning “${current.activity.title}”. Huddle keeps one adventure at a time, so this would replace it.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Keep current plan', onPress: () => router.back() },
+          { text: 'Replace my plan', style: 'destructive', onPress: () => void commitTo(activity, current.activityId) },
+        ],
+      );
+      return;
+    }
+    void commitTo(activity, null);
+  }
+
+  function notForMe() {
+    if (recommendation && !passed) void app.dismiss(recommendation, 'not_my_thing');
+    router.back();
+  }
+
+  const footer =
     entry?.status === 'planned' ? (
       <Button
         label="Open my adventure"
@@ -104,179 +141,79 @@ export default function ActivityDetails() {
         onPress={() => router.replace({ pathname: '/adventure/[id]', params: { id: activity.id } })}
       />
     ) : (
-      <Button
-        label={activity.kind === 'event' ? 'I’m going' : 'I’ll try this'}
-        icon="flag-outline"
-        onPress={commit}
-        loading={busy}
-        disabled={!availability.viable}
-        accessibilityHint="Adds this to your plans and focuses the app on it"
-      />
+      <>
+        <View style={styles.commitHeading}>
+          <AppText variant="bodyStrong">Ready to do this? 🐧</AppText>
+          <AppText variant="small">Make it your next adventure.</AppText>
+        </View>
+        <Button
+          label="Let’s Adventure!"
+          icon="flag-outline"
+          onPress={letsAdventure}
+          loading={busy}
+          disabled={!availability.viable}
+          accessibilityHint={
+            availability.viable ? 'Plans this as your next adventure' : `${availability.label}, so it can’t be planned`
+          }
+        />
+        <Row gap={spacing.sm}>
+          <Button
+            label="Maybe"
+            variant="secondary"
+            compact
+            style={styles.flex}
+            onPress={() => router.back()}
+            accessibilityHint="Goes back without planning or saving"
+          />
+          <Button
+            label={passed ? 'Passed' : 'Not for me'}
+            variant="ghost"
+            compact
+            style={styles.flex}
+            disabled={passed}
+            onPress={notForMe}
+            accessibilityHint="Passes on this idea and goes back"
+          />
+        </Row>
+      </>
     );
 
   return (
-    <Screen
-      footer={
-        <>
-          {primary}
-          {!entry || entry.status === 'saved' ? (
-            <Button
-              label={saved ? 'Saved for later' : 'Save for later'}
-              variant="secondary"
-              icon={saved ? 'bookmark' : 'bookmark-outline'}
-              onPress={() => void (saved ? app.unsave(activity.id) : app.save(activity))}
-              accessibilityHint={saved ? 'Removes it from Saved' : 'Keeps it in My adventures without committing'}
-            />
-          ) : null}
-        </>
-      }
-    >
+    <Screen footer={footer}>
       <TopBar onBack={() => router.back()} />
-
-      <View style={styles.titleBlock}>
-        <Row gap={spacing.sm}>
-          <Icon name={CATEGORY_ICON[activity.category]} size={16} color={colors.skyInk} />
-          <AppText variant="caption" color={colors.skyInk}>
-            {CATEGORY_LABEL[activity.category].toUpperCase()} · {activity.kind === 'event' ? 'EVENT' : 'ANY TIME'}
+      <ActivityImage activity={activity} rounded="all" aspectRatio={16 / 10} />
+      <DetailsBody activity={activity} now={now} distance={recommendation?.distanceKm} onOpen={open} />
+      {recommendation?.reasons.length ? (
+        <View style={styles.why}>
+          <AppText variant="smallStrong" color={colors.blushInk}>
+            Why Huddle suggested it
           </AppText>
-        </Row>
-        <AppText variant="display" accessibilityRole="header" style={styles.title}>
-          {activity.title}
-        </AppText>
-        <Row gap={spacing.sm} wrap>
-          <ChallengeBadge challenge={challenge} />
-          <TrustBadge activity={activity} />
-        </Row>
-      </View>
-
-      {!availability.viable ? (
-        <Notice tone="warning">{`${availability.label}. It can’t be planned right now.`}</Notice>
-      ) : isDemo ? (
-        <Notice tone="info" icon="flask-outline">
-          This is a made-up sample listing for trying the app. Nothing here is a real event, venue or price.
-        </Notice>
-      ) : !availability.confirmed ? (
-        <Notice tone="warning">{availability.label}</Notice>
-      ) : (
-        <Notice tone="success">{availability.label}</Notice>
-      )}
-
-      {activity.description ? <AppText variant="body">{activity.description}</AppText> : null}
-
-      <Card>
-        <FactRow
-          icon={when.icon}
-          text={when.text}
-          certainty={when.known ? undefined : 'unknown'}
-          detail={showZone ? `Times shown in ${activity.timeZone}` : whenDetail}
-        />
-        <FactRow icon="hourglass-outline" text={duration.text} certainty={duration.certainty} />
-        <FactRow icon="wallet-outline" text={price.text} certainty={price.certainty} detail={activity.price?.note} />
-        <FactRow
-          icon="location-outline"
-          text={activity.venue?.name ?? 'Location not listed'}
-          certainty={activity.venue ? undefined : 'unknown'}
-          detail={
-            [
-              activity.venue?.address,
-              distance !== undefined
-                ? `${formatDistance(distance)} away${isDemo ? ' (in the sample town)' : ''}`
-                : activity.venue
-                  ? 'Distance unknown'
-                  : undefined,
-            ]
-              .filter(Boolean)
-              .join(' · ') || undefined
-          }
-        />
-        {activity.restrictions ? <FactRow icon="information-circle-outline" text={activity.restrictions} /> : null}
-        {directions ? (
-          <Button
-            label="Get directions"
-            variant="soft"
-            icon="navigate-outline"
-            compact
-            onPress={() => void open(directions)}
-          />
-        ) : null}
-      </Card>
-
-      {activity.whatToExpect ? (
-        <Section title="What to expect">
-          <AppText variant="body">{activity.whatToExpect}</AppText>
-        </Section>
-      ) : null}
-
-      {activity.whyTry || recommendation ? (
-        <Section title="Why it might be worth it">
-          {activity.whyTry ? <AppText variant="body">{activity.whyTry}</AppText> : null}
-          {recommendation ? (
-            <View style={styles.why}>
-              <AppText variant="smallStrong" color={colors.peachInk}>
-                Why Huddle suggested it
+          {recommendation.reasons.map((reason) => (
+            <Row key={reason} gap={spacing.sm}>
+              <Icon name="sparkles" size={14} color={colors.blushInk} />
+              <AppText variant="small" color={colors.blushInk} style={styles.shrink}>
+                {reason}
               </AppText>
-              {recommendation.reasons.map((reason) => (
-                <Row key={reason} gap={spacing.sm}>
-                  <Icon name="sparkles" size={14} color={colors.peachInk} />
-                  <AppText variant="small" color={colors.peachInk} style={styles.shrink}>
-                    {reason}
-                  </AppText>
-                </Row>
-              ))}
-            </View>
-          ) : null}
-        </Section>
+            </Row>
+          ))}
+        </View>
       ) : null}
-
-      <Section title={`Challenge: ${CHALLENGE_LABEL[challenge.level]}`}>
-        <AppText variant="small">
-          {challenge.notes.length
-            ? challenge.notes.join(' · ')
-            : 'Low-key: familiar, relaxed and easy to leave early if you want to.'}
-        </AppText>
-      </Section>
-
-      <Section title="Source">
-        <Card>
-          <FactRow
-            icon={activity.verification.status === 'verified' ? 'shield-checkmark-outline' : 'help-circle-outline'}
-            text={
-              isDemo
-                ? 'Huddle sample data (fictional)'
-                : (activity.source.label ?? sourceHost(activity.source.url) ?? 'Source not named')
-            }
-            detail={
-              activity.verification.status === 'verified'
-                ? `Verified with the organizer${checked ? ` · ${checked.toLowerCase()}` : ''}`
-                : isDemo
-                  ? 'Not a real listing'
-                  : 'Not verified. Check the details with the organizer before you go.'
-            }
-          />
-          {activity.source.url ? (
-            <Pressable
-              onPress={() => void open(activity.source.url!)}
-              accessibilityRole="link"
-              accessibilityLabel="Open the organizer’s page"
-              style={({ pressed }) => [styles.sourceLink, pressed && { opacity: 0.7 }]}
-            >
-              <Icon name="open-outline" size={16} color={colors.skyInk} />
-              <AppText variant="smallStrong" color={colors.skyInk}>
-                Open the organizer’s page
-              </AppText>
-            </Pressable>
-          ) : null}
-          {linkError ? <Notice tone="warning">{linkError}</Notice> : null}
-        </Card>
-      </Section>
+      {linkError ? <Notice tone="warning">{linkError}</Notice> : null}
+      {!entry || entry.status === 'saved' ? (
+        <LinkButton
+          label={entry ? 'Saved for later. Tap to remove' : 'Save for later'}
+          icon={entry ? 'bookmark' : 'bookmark-outline'}
+          onPress={() => void (entry ? app.unsave(activity.id) : app.save(activity))}
+        />
+      ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  titleBlock: { gap: spacing.sm },
-  title: { fontSize: 28, lineHeight: 34 },
-  why: { gap: spacing.sm, backgroundColor: colors.peachTint, borderRadius: radius.md, padding: spacing.md },
+  why: { gap: spacing.sm, backgroundColor: colors.blushTint, borderRadius: radius.md, padding: spacing.md },
+  commitHeading: { gap: 2 },
+  success: { alignItems: 'center', gap: spacing.md, paddingTop: spacing.xxl * 2 },
+  flex: { flex: 1 },
   shrink: { flexShrink: 1 },
-  sourceLink: { minHeight: touchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });
