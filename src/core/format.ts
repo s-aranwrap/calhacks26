@@ -4,6 +4,7 @@
  * label estimates and admit unknowns instead of presenting guesses as fact.
  */
 import { BUDGET_CAP } from './recommend.ts';
+import { formatDistance } from './util.ts';
 import type { BudgetLevel, Certainty, Duration, Price } from './types.ts';
 
 export type FactCertainty = Certainty | 'unknown';
@@ -58,7 +59,7 @@ export function budgetLabel(level: BudgetLevel, currency: string, locale?: strin
 }
 
 export function distanceOptionLabel(km: number | null): string {
-  return km === null ? 'Any' : `${km} km`;
+  return km === null ? 'Any' : formatDistance(km);
 }
 
 export function timeOptionLabel(minutes: number | null): string {

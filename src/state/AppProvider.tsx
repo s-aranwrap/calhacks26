@@ -6,6 +6,7 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { activityMoodsFor, resolveWhen, type MoodPick, type WhenFilter } from '@/core/discovery';
 import { dedupeActivities } from '@/core/dedupe';
 import { importActivities, type ImportFormat, type ImportReport } from '@/core/importer';
 import { recommend, type DiscoveryResult, type Recommendation } from '@/core/recommend';
@@ -16,7 +17,6 @@ import type {
   BudgetLevel,
   DismissReason,
   GeoPoint,
-  Mood,
   Reaction,
   UserHistory,
   UserLocation,
@@ -35,7 +35,9 @@ import { createSupabaseRepository } from '@/data/repositories/supabaseRepository
 import { fromExpoSqlite } from './database';
 
 export interface DiscoveryFilters {
-  mood: Mood;
+  /** Up to three penguin moods; empty = surprise me. */
+  moods: MoodPick[];
+  when: WhenFilter;
   budget: BudgetLevel;
   maxDistanceKm: number | null;
   availableMinutes: number | null;
@@ -46,8 +48,11 @@ export interface DiscoverySession {
   result: DiscoveryResult;
   /** Every activity shown in this session, so "three more" never repeats. */
   shownIds: string[];
+  /** Passed ("Pass" / "Not for me") in this round; they stay visible, marked as passed. */
   dismissedIds: string[];
   round: number;
+  /** Which card of the current three is showing, so coming back restores it. */
+  index: number;
 }
 
 interface AppContextValue {
@@ -67,6 +72,7 @@ interface AppContextValue {
   startDiscovery(filters: DiscoveryFilters): void;
   showMore(): void;
   endDiscovery(): void;
+  setDiscoveryIndex(index: number): void;
   dismiss(recommendation: Recommendation, reason: DismissReason | undefined): Promise<void>;
 
   findActivity(id: string): Activity | null;
@@ -74,6 +80,8 @@ interface AppContextValue {
   save(activity: Activity): Promise<void>;
   unsave(activityId: string): Promise<void>;
   plan(activity: Activity): Promise<void>;
+  /** Cancels the current plan (if any) and plans this one instead. Callers confirm with the user first. */
+  replacePlan(currentId: string, activity: Activity): Promise<void>;
   cancelPlan(activityId: string): Promise<void>;
   complete(activity: Activity): Promise<void>;
   reflect(activityId: string, reaction: Reaction | undefined, reflection: string | undefined): Promise<void>;
@@ -187,7 +195,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (filters: DiscoveryFilters, excludeIds: string[]): DiscoveryResult =>
       recommend(
         catalog?.activities ?? [],
-        { ...filters, now: new Date(), excludeIds, seed: Date.now() % 2_147_483_647, ...(origin ? { origin } : {}) },
+        {
+          moods: activityMoodsFor(filters.moods),
+          budget: filters.budget,
+          maxDistanceKm: filters.maxDistanceKm,
+          availableMinutes: filters.availableMinutes,
+          now: new Date(),
+          excludeIds,
+          seed: Date.now() % 2_147_483_647,
+          ...(origin ? { origin } : {}),
+          ...withWindow(filters.when),
+        },
         prefsRef.current,
         history,
       ),
@@ -203,6 +221,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         shownIds: result.recommendations.map((r) => r.activity.id),
         dismissedIds: [],
         round: 1,
+        index: 0,
       });
     },
     [runRecommend],
@@ -218,11 +237,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         shownIds: [...current.shownIds, ...result.recommendations.map((r) => r.activity.id)],
         dismissedIds: [],
         round: current.round + 1,
+        index: 0,
       };
     });
   }, [runRecommend]);
 
   const endDiscovery = useCallback(() => setDiscovery(null), []);
+  const setDiscoveryIndex = useCallback(
+    (index: number) => setDiscovery((current) => (current && current.index !== index ? { ...current, index } : current)),
+    [],
+  );
 
   const dismiss = useCallback(
     async (recommendation: Recommendation, reason: DismissReason | undefined) => {
@@ -242,7 +266,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...(reason ? { reason } : {}),
       };
       setDiscovery((current) =>
-        current ? { ...current, dismissedIds: [...current.dismissedIds, activity.id] } : current,
+        current && !current.dismissedIds.includes(activity.id)
+          ? { ...current, dismissedIds: [...current.dismissedIds, activity.id] }
+          : current,
       );
       await store.addFeedback(feedback);
       await refreshHistory();
@@ -277,10 +303,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       save: withRefresh((activity: Activity) => store.saveActivity(activity, new Date())),
       unsave: withRefresh((id: string) => store.unsaveActivity(id)),
-      plan: withRefresh(async (activity: Activity) => {
-        await store.planActivity(activity, new Date());
-        // Committing ends the browsing session: the planned adventure takes focus.
-        setDiscovery(null);
+      // The browsing session survives a commitment, so "Back to Discover" still has the same three ideas.
+      plan: withRefresh((activity: Activity) => store.planActivity(activity, new Date())),
+      replacePlan: withRefresh(async (currentId: string, activity: Activity) => {
+        const now = new Date();
+        await store.cancelPlan(currentId, now);
+        await store.planActivity(activity, now);
       }),
       cancelPlan: withRefresh((id: string) => store.cancelPlan(id, new Date())),
       complete: withRefresh((activity: Activity) => store.completeActivity(activity, new Date())),
@@ -337,6 +365,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     startDiscovery,
     showMore,
     endDiscovery,
+    setDiscoveryIndex,
     dismiss,
     findActivity,
     entryFor,
@@ -354,6 +383,11 @@ export function useApp(): AppContextValue {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used inside <AppProvider>');
   return ctx;
+}
+
+function withWindow(when: WhenFilter): { window?: { startMs: number; endMs: number } } {
+  const window = resolveWhen(when, new Date());
+  return window ? { window } : {};
 }
 
 /** The most relevant planned adventure (soonest event first, then most recently planned). */

@@ -2,13 +2,7 @@
  * Root layout: fonts, the on-device database, app state and the navigation
  * stack. Everything here works offline and without any credentials.
  */
-import {
-  Nunito_400Regular,
-  Nunito_600SemiBold,
-  Nunito_700Bold,
-  Nunito_800ExtraBold,
-  useFonts,
-} from '@expo-google-fonts/nunito';
+import { Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold, useFonts } from '@expo-google-fonts/quicksand';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { SQLiteProvider } from 'expo-sqlite';
@@ -26,12 +20,8 @@ import { useReducedMotion } from '@/ui/useReducedMotion';
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Nunito_400Regular,
-    Nunito_600SemiBold,
-    Nunito_700Bold,
-    Nunito_800ExtraBold,
-  });
+  // Bundled font files, so nothing is fetched from the network at startup.
+  const [fontsLoaded, fontError] = useFonts({ Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold });
   const reduceMotion = useReducedMotion();
   // If fonts fail to load we carry on with the system font rather than blocking the app.
   const fontsSettled = fontsLoaded || !!fontError;
@@ -60,6 +50,7 @@ export default function RootLayout() {
             <Stack.Screen name="quests" />
             <Stack.Screen name="activity/[id]" />
             <Stack.Screen name="adventure/[id]" />
+            <Stack.Screen name="privacy" />
           </Stack>
         </AppProvider>
       </SQLiteProvider>

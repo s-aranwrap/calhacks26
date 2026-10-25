@@ -15,11 +15,20 @@
  * Missing data is never treated as a failed filter: unknown price, distance or
  * duration only costs a little score and is labeled honestly in the UI.
  */
-import { assessAvailability, type AvailabilityState } from './availability.ts';
+import { assessAvailability, eventEndMs, type AvailabilityState } from './availability.ts';
 import { assessChallenge, type ChallengeAssessment } from './challenge.ts';
 import { buildProfile, isInDismissCooldown, type LearnedProfile } from './learning.ts';
 import { dayPart, hourInZone } from './time.ts';
-import type { Activity, BudgetLevel, Category, GeoPoint, Mood, UserHistory, UserPreferences } from './types.ts';
+import type {
+  Activity,
+  ActivityMood,
+  BudgetLevel,
+  Category,
+  GeoPoint,
+  Mood,
+  UserHistory,
+  UserPreferences,
+} from './types.ts';
 import { HOUR_MS, distanceKm, parseTime, seededRandom, stableHash } from './util.ts';
 
 export const BUDGET_CAP: Record<BudgetLevel, number> = { free: 0, low: 15, medium: 40, any: Infinity };
@@ -32,7 +41,15 @@ export const BUDGET_LABEL: Record<BudgetLevel, string> = {
 };
 
 export interface DiscoveryRequest {
-  mood: Mood;
+  /** Single-mood requests (older callers and tests). Ignored when `moods` is non-empty. */
+  mood?: Mood;
+  /** Any-of match: an activity fits when it carries at least one of these. Empty = surprise me. */
+  moods?: readonly ActivityMood[];
+  /**
+   * Optional "when" window (epoch ms). Events must overlap it; places are
+   * checked for being open at its start rather than right now.
+   */
+  window?: { startMs: number; endMs: number };
   budget: BudgetLevel;
   /** null = any distance */
   maxDistanceKm: number | null;
@@ -69,6 +86,7 @@ export type ExclusionReason =
   | 'recently_dismissed'
   | 'shown_this_session'
   | 'mood'
+  | 'when'
   | 'budget'
   | 'distance'
   | 'time'
@@ -79,6 +97,7 @@ export type FilterSuggestion =
   | 'widen_distance'
   | 'more_time'
   | 'change_mood'
+  | 'any_time'
   | 'include_unverified'
   | 'bolder_nudge'
   | 'start_fresh';
@@ -131,7 +150,7 @@ const CATEGORY_ADJECTIVE: Record<Category, string> = {
   other: '',
 };
 
-const MOOD_TEXT: Record<Exclude<Mood, 'surprise'>, string> = {
+const MOOD_TEXT: Record<ActivityMood, string> = {
   chill: 'Easygoing, matches your chill mood',
   social: 'A good one for being around people',
   active: 'Gets you moving',
@@ -153,6 +172,20 @@ const AVAILABILITY_EXCLUSION: Partial<Record<AvailabilityState, ExclusionReason>
 // ---------------------------------------------------------------------------
 // 1. Eligibility
 // ---------------------------------------------------------------------------
+
+/** The activity moods a request asks for; empty means "surprise me". */
+export function requestedMoods(request: Pick<DiscoveryRequest, 'mood' | 'moods'>): readonly ActivityMood[] {
+  if (request.moods?.length) return request.moods;
+  return request.mood && request.mood !== 'surprise' ? [request.mood] : [];
+}
+
+function outsideWindow(activity: Activity, window: NonNullable<DiscoveryRequest['window']>): boolean {
+  if (activity.kind !== 'event') return false;
+  const start = parseTime(activity.startAt);
+  if (start === undefined) return true;
+  const end = eventEndMs(activity) ?? start;
+  return start >= window.endMs || end <= window.startMs;
+}
 
 function knownPriceInCurrency(activity: Activity, currency: string): number | undefined {
   if (!activity.price) return undefined;
@@ -178,7 +211,12 @@ export function exclusionReason(
 ): ExclusionReason | null {
   if (activity.verification.status === 'candidate') return 'candidate';
 
-  const availability = assessAvailability(activity, request.now);
+  // A place that's shut tonight can still be tomorrow's plan, so places are checked at the window's start.
+  const checkAt =
+    activity.kind === 'evergreen' && request.window && request.window.startMs > request.now.getTime()
+      ? new Date(request.window.startMs)
+      : request.now;
+  const availability = assessAvailability(activity, checkAt);
   if (!availability.viable) return AVAILABILITY_EXCLUSION[availability.state] ?? 'unavailable';
 
   if (activity.verification.status === 'unverified' && !prefs.includeUnverified) return 'unverified';
@@ -189,7 +227,9 @@ export function exclusionReason(
   if (isInDismissCooldown(activity.id, history.feedback, request.now)) return 'recently_dismissed';
   if (request.excludeIds?.includes(activity.id)) return 'shown_this_session';
 
-  if (request.mood !== 'surprise' && !activity.moods.includes(request.mood)) return 'mood';
+  const moods = requestedMoods(request);
+  if (moods.length && !activity.moods.some((m) => moods.includes(m))) return 'mood';
+  if (request.window && outsideWindow(activity, request.window)) return 'when';
 
   const price = knownPriceInCurrency(activity, prefs.currency);
   if (price !== undefined && price > BUDGET_CAP[request.budget]) return 'budget';
@@ -231,7 +271,9 @@ function scoreCandidate(
   };
 
   // Mood is already a hard filter; this reason is a low-priority fallback line.
-  if (request.mood !== 'surprise') add(0.5, MOOD_TEXT[request.mood], 0.2);
+  const moods = requestedMoods(request);
+  const matched = moods.find((m) => activity.moods.includes(m));
+  if (matched) add(0.5, MOOD_TEXT[matched], 0.2);
 
   if (prefs.interests.includes(activity.category)) add(2, 'One of your interests');
 
@@ -327,7 +369,7 @@ function scoreCandidate(
   else if (challenge.level === 'moderate' && prefs.nudge === 'bold') add(0.3);
 
   // "Surprise me" leans on randomness; other moods only use it to break ties.
-  add(rng() * (request.mood === 'surprise' ? 2 : 0.25));
+  add(rng() * (moods.length === 0 ? 2 : 0.25));
 
   return { activity, score, reasons, challenge, ...(distance !== undefined ? { distanceKm: distance } : {}), novel };
 }
@@ -448,13 +490,14 @@ function suggestionsFor(
     ['more_time', exclusions.time ?? 0],
     ['include_unverified', exclusions.unverified ?? 0],
     ['bolder_nudge', exclusions.too_challenging ?? 0],
+    ['any_time', exclusions.when ?? 0],
     ['start_fresh', exclusions.shown_this_session ?? 0],
   ];
   const out: FilterSuggestion[] = ranked
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([s]) => s);
-  if (request.mood !== 'surprise' && (exclusions.mood ?? 0) > 0) out.push('change_mood');
+  if (requestedMoods(request).length && (exclusions.mood ?? 0) > 0) out.push('change_mood');
   return out.slice(0, 3);
 }
 

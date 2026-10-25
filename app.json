@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "huddle",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#FBF7EF",
+    "backgroundColor": "#FFFCD4",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.example.huddle",
@@ -19,7 +19,7 @@
       "package": "com.example.huddle",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#FBF7EF"
+        "backgroundColor": "#FFFCD4"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -28,14 +28,14 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Huddle uses your location only on this phone, to estimate how far activities are. It is never uploaded.",
+          "locationWhenInUsePermission": "Huddle uses your location to estimate how far activities are. It is stored only on this phone and never sent to Huddle.",
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FBF7EF",
+          "backgroundColor": "#FFFCD4",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160
         }

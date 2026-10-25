@@ -1,27 +1,36 @@
 /**
- * Settings: location, interests, default filters, recommendation style,
- * activity data (import / sources), export, delete and privacy information.
+ * Settings: discovery preferences (location, distance, budget, time,
+ * interests, nudge), activity data (import / sources), export, delete, and a
+ * link to the privacy page.
  */
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
-import { budgetLabel, distanceOptionLabel, timeOptionLabel } from '@/core/format';
 import { detectFormat, summarizeImport, type ImportReport } from '@/core/importer';
 import { CATEGORIES, type Category, type NudgeLevel } from '@/core/types';
-import {
-  BUDGET_OPTIONS,
-  CURRENCY_OPTIONS,
-  DISTANCE_OPTIONS_KM,
-  NUDGE_OPTIONS,
-  TIME_OPTIONS_MINUTES,
-} from '@/data/local/preferences';
+import { CURRENCY_OPTIONS, NUDGE_OPTIONS } from '@/data/local/preferences';
 import { pickActivityFile, shareJson } from '@/services/files';
-import { geocodeIfPermitted, locateDevice } from '@/services/location';
 import { useApp } from '@/state/AppProvider';
+import { CATEGORY_LABEL } from '@/ui/activityMeta';
+import { BudgetChoice, DistanceInput, TimeChoice } from '@/ui/components/DiscoveryFilters';
 import { Notice } from '@/ui/components/feedback';
-import { AppText, Button, Card, Chip, ChoiceRow, Divider, Row, Screen, Section } from '@/ui/components/primitives';
-import { CATEGORY_LABEL } from '@/ui/components/QuestCard';
-import { colors, fonts, radius, spacing } from '@/ui/theme';
+import { LocationField, useLocationEntry } from '@/ui/components/LocationField';
+import {
+  AppText,
+  Button,
+  Card,
+  Chip,
+  ChoiceRow,
+  Divider,
+  Icon,
+  LinkButton,
+  Row,
+  Screen,
+  ScreenHeader,
+  Section,
+} from '@/ui/components/primitives';
+import { colors, radius, spacing } from '@/ui/theme';
 
 const NUDGE_TEXT: Record<NudgeLevel, { label: string; detail: string }> = {
   gentle: { label: 'Gentle', detail: 'Stick to easy, familiar things.' },
@@ -31,42 +40,30 @@ const NUDGE_TEXT: Record<NudgeLevel, { label: string; detail: string }> = {
 
 export default function Settings() {
   const app = useApp();
-  const { preferences, catalog } = app;
-  const [place, setPlace] = useState(preferences.location?.label ?? '');
+  const router = useRouter();
+  const { preferences, catalog, history } = app;
+  const location = useLocationEntry(preferences.location);
   const [locMessage, setLocMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const [message, setMessage] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
+  const [exportFailed, setExportFailed] = useState(false);
 
-  async function saveTypedLocation() {
-    const label = place.trim();
-    if (label.length < 2) return;
+  async function saveLocation() {
     setBusy('location');
-    const coords = await geocodeIfPermitted(label);
-    await app.updatePreferences({ location: { label, source: 'manual', ...(coords ?? {}) } });
-    setLocMessage(
-      coords
-        ? 'Saved. Distances will be estimated from there.'
-        : 'Saved. Distances stay unknown until Huddle has coordinates (use your location, or import activities with coordinates).',
-    );
-    setBusy(null);
-  }
-
-  async function useDevice() {
-    setBusy('device');
-    const result = await locateDevice();
-    if (result.ok) {
-      await app.updatePreferences({ location: result.location });
-      setPlace(result.location.label);
-      setLocMessage('Using your current location. It stays on this phone.');
-    } else {
+    try {
+      const next = await location.resolve();
+      await app.updatePreferences({ location: next });
       setLocMessage(
-        result.reason === 'denied'
-          ? 'Location permission wasn’t granted. Typing a place works too.'
-          : 'Couldn’t get your location right now.',
+        !next
+          ? 'Location cleared. Huddle will measure from the city center.'
+          : next.latitude !== undefined
+            ? 'Saved. Distances will be estimated from there.'
+            : 'Saved. Distances stay unknown until Huddle has coordinates (tap “Use my location” to add them).',
       );
+    } finally {
+      setBusy(null);
     }
-    setBusy(null);
   }
 
   function toggleInterest(category: Category) {
@@ -92,27 +89,31 @@ export default function Settings() {
 
   async function exportHistory() {
     setBusy('export');
+    setExportFailed(false);
     try {
       const json = await app.exportHistoryJson();
       await shareJson(`huddle-history-${new Date().toISOString().slice(0, 10)}.json`, json);
     } catch {
-      setMessage({ tone: 'warning', text: 'Export didn’t work. Please try again.' });
+      setExportFailed(true);
     }
     setBusy(null);
   }
 
   function confirmDelete() {
+    const planned = history.adventures.some((a) => a.status === 'planned');
     Alert.alert(
-      'Delete your history?',
-      'This permanently removes saved, planned and completed adventures, reactions, reflections and feedback from this phone. Your settings stay.',
+      'Delete local history?',
+      `This will permanently delete your locally stored adventure history, including completed activities and private reflections.${
+        planned ? ' Your current planned adventure will be deleted too.' : ''
+      } Your preferences stay. This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Delete history',
           style: 'destructive',
           onPress: async () => {
             await app.clearHistory();
-            setMessage({ tone: 'success', text: 'Your history was deleted.' });
+            setMessage({ tone: 'success', text: 'Your local history was deleted.' });
           },
         },
       ],
@@ -130,85 +131,41 @@ export default function Settings() {
 
   return (
     <Screen inTabs>
-      <AppText variant="title" accessibilityRole="header">
-        Settings
-      </AppText>
+      <ScreenHeader title="Settings" subtitle="No account needed. Everything here stays on this phone." />
       {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
 
-      <Section title="Location">
+      <Section title="Discovery preferences">
         <Card>
-          <TextInput
-            value={place}
-            onChangeText={setPlace}
-            placeholder="City or neighbourhood"
-            placeholderTextColor={colors.inkMuted}
-            style={styles.input}
-            autoCapitalize="words"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={saveTypedLocation}
-            accessibilityLabel="City or neighbourhood"
-            maxLength={80}
+          <LocationField entry={location} label="Default location" onSubmit={() => void saveLocation()} />
+          <Button
+            label="Save location"
+            variant="soft"
+            compact
+            onPress={() => void saveLocation()}
+            loading={busy === 'location'}
           />
-          <Row gap={spacing.sm} wrap>
-            <Button
-              label="Save place"
-              variant="soft"
-              compact
-              onPress={saveTypedLocation}
-              loading={busy === 'location'}
-              disabled={place.trim().length < 2}
-            />
-            <Button
-              label="Use my location"
-              variant="secondary"
-              icon="navigate-outline"
-              compact
-              onPress={useDevice}
-              loading={busy === 'device'}
-            />
-          </Row>
           {locMessage ? <AppText variant="small">{locMessage}</AppText> : null}
         </Card>
-      </Section>
-
-      <Section title="Interests">
-        <AppText variant="small">Optional. Things you pick here get a small boost, never a filter.</AppText>
-        <View style={styles.chips}>
-          {CATEGORIES.filter((c) => c !== 'other').map((category) => (
-            <Chip
-              key={category}
-              label={CATEGORY_LABEL[category]}
-              selected={preferences.interests.includes(category)}
-              onPress={() => toggleInterest(category)}
-            />
-          ))}
-        </View>
-      </Section>
-
-      <Section title="Default filters">
         <Card>
-          <ChoiceRow
-            label="Budget"
-            options={BUDGET_OPTIONS}
+          <DistanceInput
+            label="Preferred distance"
+            km={preferences.maxDistanceKm}
+            onChange={(maxDistanceKm) => void app.updatePreferences({ maxDistanceKm })}
+            hasOrigin={!!app.origin}
+          />
+          <Divider />
+          <BudgetChoice
             value={preferences.budget}
             onChange={(budget) => void app.updatePreferences({ budget })}
-            format={(v) => budgetLabel(v, preferences.currency)}
+            currency={preferences.currency}
           />
-          <ChoiceRow
-            label="Distance"
-            options={DISTANCE_OPTIONS_KM}
-            value={preferences.maxDistanceKm}
-            onChange={(maxDistanceKm) => void app.updatePreferences({ maxDistanceKm })}
-            format={distanceOptionLabel}
-          />
-          <ChoiceRow
+          <Divider />
+          <TimeChoice
             label="Time you usually have"
-            options={TIME_OPTIONS_MINUTES}
             value={preferences.availableMinutes}
             onChange={(availableMinutes) => void app.updatePreferences({ availableMinutes })}
-            format={timeOptionLabel}
           />
+          <Divider />
           <ChoiceRow
             label="Currency"
             options={CURRENCY_OPTIONS}
@@ -217,9 +174,20 @@ export default function Settings() {
             format={(c) => c}
           />
         </Card>
-      </Section>
-
-      <Section title="Recommendations">
+        <Card>
+          <AppText variant="smallStrong">Interests</AppText>
+          <AppText variant="small">Optional. Things you pick here get a small boost, never a filter.</AppText>
+          <View style={styles.chips}>
+            {CATEGORIES.filter((c) => c !== 'other').map((category) => (
+              <Chip
+                key={category}
+                label={CATEGORY_LABEL[category]}
+                selected={preferences.interests.includes(category)}
+                onPress={() => toggleInterest(category)}
+              />
+            ))}
+          </View>
+        </Card>
         <Card>
           <ChoiceRow
             label="How much should Huddle nudge you?"
@@ -238,7 +206,7 @@ export default function Settings() {
             <Switch
               value={preferences.includeUnverified}
               onValueChange={(includeUnverified) => void app.updatePreferences({ includeUnverified })}
-              trackColor={{ true: colors.sky, false: colors.border }}
+              trackColor={{ true: colors.primary, false: colors.border }}
               accessibilityLabel="Include unverified listings"
             />
           </Row>
@@ -282,26 +250,38 @@ export default function Settings() {
       <Section title="Your data">
         <Card>
           <Button
-            label="Export history (JSON)"
+            label="Export my history"
             variant="secondary"
             icon="download-outline"
             onPress={exportHistory}
             loading={busy === 'export'}
+            accessibilityHint="Shares your planned and completed adventures as a JSON file"
           />
-          <Button label="Delete history" variant="danger" icon="trash-outline" onPress={confirmDelete} />
+          {exportFailed ? (
+            <Notice tone="warning">
+              <AppText variant="small" color={colors.warning}>
+                Export didn’t work.
+              </AppText>
+              <LinkButton label="Try again" icon="refresh" color={colors.warning} onPress={() => void exportHistory()} />
+            </Notice>
+          ) : null}
+          <Button label="Delete local history" variant="danger" icon="trash-outline" onPress={confirmDelete} />
         </Card>
       </Section>
 
       <Section title="Privacy">
-        <Card>
-          <AppText variant="small">
-            Huddle has no accounts, no analytics and no tracking. Your preferences, plans, reactions and reflections are
-            stored only in a database on this phone. They’re never uploaded. Your location is used on the phone to
-            estimate distances and isn’t sent anywhere. When an online catalog is configured, the app only downloads
-            public activity listings from it. Export creates a file you choose where to share; Delete removes your
-            history from this phone.
-          </AppText>
-        </Card>
+        <Pressable
+          onPress={() => router.push('/privacy')}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.linkRow, pressed && { backgroundColor: colors.surfaceAlt }]}
+        >
+          <Icon name="lock-closed-outline" size={20} color={colors.primaryInk} />
+          <View style={styles.flex}>
+            <AppText variant="bodyStrong">How Huddle handles your data</AppText>
+            <AppText variant="small">No account, no analytics, no tracking.</AppText>
+          </View>
+          <Icon name="chevron-forward" size={20} color={colors.inkMuted} />
+        </Pressable>
       </Section>
     </Screen>
   );
@@ -348,15 +328,15 @@ function describeSource(catalog: ReturnType<typeof useApp>['catalog']): string {
 const styles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  input: {
-    minHeight: 50,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    minHeight: 64,
+    borderRadius: radius.lg,
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-    fontFamily: fonts.semibold,
-    fontSize: 16,
-    color: colors.ink,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
   },
 });

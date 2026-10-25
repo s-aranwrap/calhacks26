@@ -1,6 +1,6 @@
 # Huddle
 
-**Less scrolling. More living.**
+**Less wondering. More waddling.**
 
 Huddle is a phone app that suggests something to do nearby. You pick a mood, and it gives you exactly three ideas. You commit to one, and then the app gets out of your way so you can go do it. Afterwards you can leave a quick emoji and a private note, and a little penguin joins your "huddle".
 

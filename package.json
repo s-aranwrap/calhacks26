@@ -2,7 +2,7 @@
   "name": "huddle",
   "version": "1.0.0",
   "private": true,
-  "description": "Huddle: an offline-first activity discovery app. Less scrolling. More living.",
+  "description": "Huddle: an offline-first activity discovery app. Less wondering. More waddling.",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -22,7 +22,7 @@
     "ai:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/ingest/ai-check.ts"
   },
   "dependencies": {
-    "@expo-google-fonts/nunito": "^0.4.2",
+    "@expo-google-fonts/quicksand": "^0.4.1",
     "@expo/vector-icons": "^15.0.2",
     "expo": "~58.0.17",
     "expo-constants": "~58.0.13",

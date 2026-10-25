@@ -20,7 +20,7 @@ import { AppText, Button, Icon, type IconName } from './primitives';
 export function LoadingState({ label = 'Just a moment…' }: { label?: string }) {
   return (
     <View style={styles.state} accessibilityLiveRegion="polite" accessibilityLabel={label}>
-      <ActivityIndicator color={colors.sky} size="large" />
+      <ActivityIndicator color={colors.primary} size="large" />
       <AppText variant="small" center>
         {label}
       </AppText>
@@ -108,7 +108,7 @@ function isTextLike(node: ReactNode): boolean {
 const CHALLENGE_STYLE: Record<ChallengeLevel, { bg: string; fg: string; icon: IconName }> = {
   easy: { bg: colors.successTint, fg: colors.success, icon: 'leaf-outline' },
   moderate: { bg: colors.skyTint, fg: colors.skyInk, icon: 'trending-up-outline' },
-  stretch: { bg: colors.peachTint, fg: colors.peachInk, icon: 'flash-outline' },
+  stretch: { bg: colors.blushTint, fg: colors.blushInk, icon: 'flash-outline' },
 };
 
 export function ChallengeBadge({ challenge }: { challenge: ChallengeAssessment | ChallengeLevel }) {

@@ -1,70 +1,52 @@
 /**
- * Visual tokens: warm ivory backgrounds, soft sky-blue accents, gentle peach
- * highlights. Text/background pairs were chosen for WCAG AA contrast
- * (≥ 4.5:1 for body text); the light "tint" colors are only ever used behind
- * their matching dark "ink" color.
+ * Visual tokens: butter-yellow backgrounds, white cards, dusty-mauve actions
+ * and deep-navy text, set in Quicksand. Colors live in ./palette (checked for
+ * contrast in tests/ui/contrast.test.ts); this file adds type, spacing and
+ * surface treatments.
  */
 import { Platform } from 'react-native';
 
-export const colors = {
-  bg: '#FBF7EF',
-  surface: '#FFFDF9',
-  surfaceAlt: '#F4EEE3',
-  border: '#E8DFD0',
-  ink: '#2B2A33',
-  inkSoft: '#57535F',
-  inkMuted: '#6B6774',
-  white: '#FFFFFF',
+import { colors } from './palette';
 
-  sky: '#2F7FC1',
-  skyPressed: '#276CA5',
-  skyTint: '#E1F0FB',
-  skyInk: '#1D5A8C',
+export { brand, colors } from './palette';
 
-  peach: '#F4B596',
-  peachTint: '#FDEBE1',
-  peachInk: '#94401F',
-
-  success: '#2F7D5B',
-  successTint: '#DFF2E8',
-  warning: '#8A5410',
-  warningTint: '#FBEFD8',
-  danger: '#B23A33',
-  dangerTint: '#F9E1DF',
-
-  penguin: '#2E3440',
-  penguinBelly: '#FFFDF9',
-  beak: '#F2A25C',
-} as const;
-
+/**
+ * Quicksand is bundled with the app (no network font request). Its 400 weight
+ * is thin on butter yellow, so body copy uses 500.
+ */
 export const fonts = {
-  regular: 'Nunito_400Regular',
-  semibold: 'Nunito_600SemiBold',
-  bold: 'Nunito_700Bold',
-  extrabold: 'Nunito_800ExtraBold',
+  regular: 'Quicksand_500Medium',
+  medium: 'Quicksand_600SemiBold',
+  semibold: 'Quicksand_600SemiBold',
+  bold: 'Quicksand_700Bold',
+  extrabold: 'Quicksand_700Bold',
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
-export const radius = { sm: 10, md: 16, lg: 22, pill: 999 } as const;
+/** Horizontal screen padding. */
+export const gutter = 20;
+/** Tags 10, buttons and inputs 16, cards 20, sheets 24. */
+export const radius = { sm: 10, md: 16, lg: 20, xl: 24, pill: 999 } as const;
 
 /** Minimum touch target (Apple HIG 44pt, Material 48dp). */
 export const touchTarget = 48;
 
 export const shadow = Platform.select({
-  ios: { shadowColor: '#5A4320', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
+  ios: { shadowColor: colors.ink, shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
   android: { elevation: 2 },
   default: {},
 });
 
 export const type = {
-  display: { fontFamily: fonts.extrabold, fontSize: 32, lineHeight: 38, color: colors.ink },
-  title: { fontFamily: fonts.extrabold, fontSize: 24, lineHeight: 30, color: colors.ink },
-  heading: { fontFamily: fonts.bold, fontSize: 18, lineHeight: 24, color: colors.ink },
-  body: { fontFamily: fonts.regular, fontSize: 16, lineHeight: 23, color: colors.ink },
-  bodyStrong: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 23, color: colors.ink },
-  small: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.inkSoft },
-  smallStrong: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 20, color: colors.ink },
-  caption: { fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16, color: colors.inkMuted },
+  display: { fontFamily: fonts.bold, fontSize: 38, lineHeight: 44, color: colors.ink },
+  title: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 36, color: colors.ink },
+  heading: { fontFamily: fonts.semibold, fontSize: 22, lineHeight: 28, color: colors.ink },
+  label: { fontFamily: fonts.bold, fontSize: 17, lineHeight: 22, color: colors.ink },
+  body: { fontFamily: fonts.regular, fontSize: 16, lineHeight: 24, color: colors.ink },
+  bodyStrong: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: colors.ink },
+  small: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, color: colors.inkSoft },
+  smallStrong: { fontFamily: fonts.bold, fontSize: 15, lineHeight: 21, color: colors.ink },
+  caption: { fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18, color: colors.inkMuted },
 } as const;
 
 export type TypeVariant = keyof typeof type;
