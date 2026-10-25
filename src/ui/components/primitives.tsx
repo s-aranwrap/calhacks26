@@ -7,6 +7,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps, ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -282,11 +283,13 @@ export function Screen({ children, footer, scroll = true, inTabs = false, conten
     contentStyle,
   ];
   return (
-    <View style={styles.screen}>
+    // Tapping any empty area closes the keyboard. Buttons and inputs inside still get their own taps.
+    <Pressable style={styles.screen} onPress={Keyboard.dismiss} accessible={false}>
       {scroll ? (
         <ScrollView
           contentContainerStyle={content}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
           {children}
@@ -295,7 +298,7 @@ export function Screen({ children, footer, scroll = true, inTabs = false, conten
         <View style={[content, styles.fill]}>{children}</View>
       )}
       {footer ? <View style={[styles.footer, { paddingBottom: bottomPad }]}>{footer}</View> : null}
-    </View>
+    </Pressable>
   );
 }
 

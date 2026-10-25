@@ -249,6 +249,9 @@ function ReflectionForm({
         placeholder="Anything you want to remember? (private)"
         placeholderTextColor={colors.inkMuted}
         multiline
+        // The Return key closes the keyboard instead of adding a new line.
+        returnKeyType="done"
+        submitBehavior="blurAndSubmit"
         maxLength={1000}
         style={styles.reflection}
         accessibilityLabel="Private reflection"
