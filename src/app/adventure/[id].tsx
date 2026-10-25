@@ -94,7 +94,11 @@ export default function AdventureFocus() {
           key={entry.activityId}
           initialReaction={entry.reaction}
           initialText={entry.reflection ?? ''}
-          onSave={(reaction, text) => app.reflect(activity.id, reaction, text)}
+          onSave={async (reaction, text) => {
+            await app.reflect(activity.id, reaction, text);
+            // Saving the reflection wraps up the adventure.
+            goHome();
+          }}
         />
       </Screen>
     );
@@ -115,6 +119,13 @@ export default function AdventureFocus() {
             accessibilityHint="Marks this adventure as completed"
           />
           <Button label="Change of plans" variant="secondary" onPress={changePlans} />
+          <Button
+            label="Back to Huddle"
+            variant="ghost"
+            icon="arrow-back"
+            onPress={goHome}
+            accessibilityHint="Leaves this screen. Your plan stays as it is."
+          />
         </>
       }
     >
@@ -177,8 +188,6 @@ export default function AdventureFocus() {
           <AppText variant="body">{activity.whatToExpect}</AppText>
         </Card>
       ) : null}
-
-      <LinkButton label="Back to Discover" icon="compass-outline" onPress={goHome} />
     </Screen>
   );
 }

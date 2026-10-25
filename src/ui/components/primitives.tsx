@@ -283,8 +283,9 @@ export function Screen({ children, footer, scroll = true, inTabs = false, conten
     contentStyle,
   ];
   return (
-    // Tapping any empty area closes the keyboard. Buttons and inputs inside still get their own taps.
-    <Pressable style={styles.screen} onPress={Keyboard.dismiss} accessible={false}>
+    <View style={styles.screen}>
+      {/* Scrolling screens: dragging or tapping empty space closes the keyboard ("handled" lets
+          buttons still receive the tap). Don't wrap the ScrollView in a Pressable: it fights the scroll gesture. */}
       {scroll ? (
         <ScrollView
           contentContainerStyle={content}
@@ -295,10 +296,13 @@ export function Screen({ children, footer, scroll = true, inTabs = false, conten
           {children}
         </ScrollView>
       ) : (
-        <View style={[content, styles.fill]}>{children}</View>
+        // Non-scrolling screens have nothing to drag, so a tap on empty space closes the keyboard.
+        <Pressable style={[content, styles.fill]} onPress={Keyboard.dismiss} accessible={false}>
+          {children}
+        </Pressable>
       )}
       {footer ? <View style={[styles.footer, { paddingBottom: bottomPad }]}>{footer}</View> : null}
-    </Pressable>
+    </View>
   );
 }
 
